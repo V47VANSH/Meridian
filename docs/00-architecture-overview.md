@@ -9,6 +9,7 @@ This document is the entry point into the full architecture. It covers the syste
 - [03 — Database Architecture](03-database-architecture.md)
 - [04 — ML Architecture](04-ml-architecture.md)
 - [05 — DevOps & Cloud Architecture](05-devops-architecture.md)
+- [06 — Wireframes & App Workflow](06-wireframes-and-workflow.md)
 
 ## 1. Objective (from Milestone 1)
 
