@@ -11,6 +11,12 @@ This document is the entry point into the full architecture. It covers the syste
 - [05 — DevOps & Cloud Architecture](05-devops-architecture.md)
 - [06 — Wireframes & App Workflow](06-wireframes-and-workflow.md)
 
+**Milestone 2 Design Deliverables:**
+
+- [07 — Design of Components](07-component-design.md)
+- [08 — Class Diagram](08-class-diagram.md)
+- [09 — Database Design Diagram](09-database-design.md)
+
 ## 1. Objective (from Milestone 1)
 
 Streamline apartment society operations through a centralized platform for maintenance payments, complaint management, facility booking, visitor management, emergency assistance, and society communication — improving transparency, accountability, and operational efficiency for residents and society officials.
