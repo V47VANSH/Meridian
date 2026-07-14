@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-blueprint-900;
+  }
+  body {
+    @apply bg-blueprint-900 text-ink-100 font-body antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display text-ink-100;
+  }
+  ::selection {
+    @apply bg-signal/30 text-ink-100;
+  }
+  *:focus-visible {
+    outline: 2px solid #FFA200;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Blueprint drafting-paper backdrop, used behind full-page shells */
+  .bp-canvas {
+    background-color: theme("colors.blueprint.900");
+    background-image: theme("backgroundImage.blueprint");
+    background-size: theme("backgroundSize.grid");
+  }
+
+  /* Eyebrow spec-code label, e.g. "F-01 / MAINTENANCE" */
+  .bp-eyebrow {
+    @apply font-mono text-[11px] tracking-[0.18em] uppercase text-signal;
+  }
+
+  /* Card surface with corner tick marks, like a drafting detail callout */
+  .bp-card {
+    @apply relative bg-blueprint-800 border border-blueprint-700 rounded-sm;
+  }
+  .bp-card::before,
+  .bp-card::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: theme("colors.blueprint.500");
+  }
+  .bp-card::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+  .bp-card::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  /* Dimension-line style divider, ticks at both ends like an architectural measurement line */
+  .bp-dimline {
+    @apply relative h-px bg-blueprint-600 my-8;
+  }
+  .bp-dimline::before,
+  .bp-dimline::after {
+    content: "";
+    position: absolute;
+    top: -3px;
+    width: 1px;
+    height: 7px;
+    background: theme("colors.blueprint.500");
+  }
+  .bp-dimline::before { left: 0; }
+  .bp-dimline::after { right: 0; }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm bg-signal px-4 py-2 text-sm font-semibold text-blueprint-950 transition hover:bg-signal-soft active:bg-signal-dim disabled:opacity-40 disabled:pointer-events-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm border border-blueprint-600 bg-transparent px-4 py-2 text-sm font-medium text-ink-100 transition hover:border-signal hover:text-signal;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-mono uppercase tracking-wide;
+  }
+  .badge-pending { @apply bg-blueprint-700 text-ink-300; }
+  .badge-progress { @apply bg-signal/15 text-signal; }
+  .badge-resolved { @apply bg-emerald-500/15 text-emerald-400; }
+  .badge-urgent { @apply bg-red-500/15 text-red-400; }
+
+  .input-field {
+    @apply w-full rounded-sm border border-blueprint-600 bg-blueprint-900 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-signal focus:outline-none;
+  }
+  .label-field {
+    @apply mb-1.5 block font-mono text-[11px] uppercase tracking-wider text-ink-500;
+  }
+}
