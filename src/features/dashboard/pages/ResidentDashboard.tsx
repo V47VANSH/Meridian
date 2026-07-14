@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
 import StatusBadge from "../../../components/StatusBadge";
-import { invoices, complaints, bookings, announcements, useMockData } from "../../../api/mockData";
+import { invoices, complaints, bookings, announcements, useMockData, Announcement } from "../../../api/mockData";
+import AnnouncementDetailModal from "../../../components/modals/AnnouncementDetailModal";
 
 export default function ResidentDashboard() {
   useMockData();
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
 
   const pendingInvoice = invoices.find((i) => i.status !== "PAID");
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
@@ -33,7 +36,7 @@ export default function ResidentDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6 mb-8">
         <div className="bp-card p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="bp-eyebrow">C-02 / RECENT COMPLAINTS</p>
@@ -51,22 +54,38 @@ export default function ResidentDashboard() {
           </ul>
         </div>
 
-        <div className="bp-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="bp-eyebrow">A-01 / LATEST ANNOUNCEMENT</p>
-            <Link to="/resident/announcements" className="text-xs text-signal hover:text-signal-soft">
-              View all
-            </Link>
+        <div
+          onClick={() => announcements[0] && setSelectedAnnouncement(announcements[0])}
+          className="bp-card p-5 cursor-pointer hover:border-signal/50 transition flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-4" onClick={(e) => e.stopPropagation()}>
+              <p className="bp-eyebrow">A-01 / LATEST ANNOUNCEMENT</p>
+              <Link to="/resident/announcements" className="text-xs text-signal hover:text-signal-soft">
+                View all
+              </Link>
+            </div>
+            {announcements[0] ? (
+              <>
+                <p className="text-sm font-medium text-ink-100 mb-1">{announcements[0].title}</p>
+                <p className="text-sm text-ink-300 leading-relaxed line-clamp-3">{announcements[0].body}</p>
+              </>
+            ) : (
+              <p className="text-sm text-ink-500 italic">No announcements posted.</p>
+            )}
           </div>
-          <p className="text-sm font-medium text-ink-100 mb-1">{announcements[0].title}</p>
-          <p className="text-sm text-ink-300 leading-relaxed">{announcements[0].body}</p>
-          <p className="mt-3 text-xs text-ink-500 font-mono">{announcements[0].postedAt}</p>
+          {announcements[0] && (
+            <div className="mt-3 flex justify-between items-center text-xs font-mono text-ink-500">
+              <span>{announcements[0].postedAt}</span>
+              <span className="text-[10px] text-signal font-medium uppercase tracking-wider">[View & Comment]</span>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="bp-dimline" />
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4 mt-6">
         <Link to="/resident/complaints/raise" className="btn-secondary py-3">Raise Complaint</Link>
         <Link to="/resident/bookings/calendar" className="btn-secondary py-3">Book Facility</Link>
         <Link to="/resident/visitors/guest-pass" className="btn-secondary py-3">Guest Pass</Link>
@@ -74,6 +93,14 @@ export default function ResidentDashboard() {
           Emergency SOS
         </Link>
       </div>
+
+      {/* Announcement Detail Popup overlay */}
+      {selectedAnnouncement && (
+        <AnnouncementDetailModal
+          announcement={selectedAnnouncement}
+          onClose={() => setSelectedAnnouncement(null)}
+        />
+      )}
     </div>
   );
 }

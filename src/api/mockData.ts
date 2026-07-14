@@ -29,13 +29,16 @@ export interface Invoice {
   amount: number;
   status: "PAID" | "PENDING" | "OVERDUE";
   dueDate: string;
+  flatNo?: string;
 }
 
 export const invoices: Invoice[] = [
-  { id: "INV-2026-06", month: "June 2026", amount: 4200, status: "PAID", dueDate: "2026-06-10" },
-  { id: "INV-2026-07", month: "July 2026", amount: 4200, status: "PENDING", dueDate: "2026-07-10" },
-  { id: "INV-2026-05", month: "May 2026", amount: 4000, status: "PAID", dueDate: "2026-05-10" },
-  { id: "INV-2026-04", month: "April 2026", amount: 4000, status: "OVERDUE", dueDate: "2026-04-10" },
+  { id: "INV-2026-06", month: "June 2026", amount: 4200, status: "PAID", dueDate: "2026-06-10", flatNo: "B-304" },
+  { id: "INV-2026-07", month: "July 2026", amount: 4200, status: "PENDING", dueDate: "2026-07-10", flatNo: "B-304" },
+  { id: "INV-2026-05", month: "May 2026", amount: 4000, status: "PAID", dueDate: "2026-05-10", flatNo: "C-101" },
+  { id: "INV-2026-04", month: "April 2026", amount: 4000, status: "OVERDUE", dueDate: "2026-04-10", flatNo: "B-304" },
+  { id: "INV-2026-08", month: "August 2026", amount: 4500, status: "PENDING", dueDate: "2026-08-10", flatNo: "A-102" },
+  { id: "INV-2026-09", month: "August 2026", amount: 4500, status: "PAID", dueDate: "2026-08-10", flatNo: "D-205" },
 ];
 
 export interface Complaint {
@@ -48,6 +51,7 @@ export interface Complaint {
   urgency: "LOW" | "MEDIUM" | "URGENT";
   createdAt: string;
   timeline: { label: string; date: string }[];
+  description?: string;
 }
 
 export const complaints: Complaint[] = [
@@ -60,6 +64,7 @@ export const complaints: Complaint[] = [
     status: "IN_PROGRESS",
     urgency: "URGENT",
     createdAt: "2026-07-08",
+    description: "Heavy water leakage observed in basement parking row B. Water is dripping onto parked cars and creating a slippery surface. Urgent inspection needed.",
     timeline: [
       { label: "Complaint raised", date: "Jul 8, 10:04 AM" },
       { label: "Assigned to maintenance staff", date: "Jul 8, 2:15 PM" },
@@ -75,6 +80,7 @@ export const complaints: Complaint[] = [
     status: "OPEN",
     urgency: "MEDIUM",
     createdAt: "2026-07-10",
+    description: "The elevator in Block C is vibrating heavily and making a loud screeching mechanical sound during operations, especially between 3rd and 5th floors.",
     timeline: [{ label: "Complaint raised", date: "Jul 10, 9:20 AM" }],
   },
   {
@@ -86,6 +92,7 @@ export const complaints: Complaint[] = [
     status: "RESOLVED",
     urgency: "LOW",
     createdAt: "2026-07-02",
+    description: "The pedestrian garden light near the pathway of Gate 2 is completely out. It gets very dark in the evening, making it hazardous for residents walking.",
     timeline: [
       { label: "Complaint raised", date: "Jul 2, 6:40 PM" },
       { label: "Assigned to electrician", date: "Jul 3, 9:00 AM" },
@@ -149,12 +156,21 @@ export const sosAlerts: SOSAlert[] = [
   { id: "SOS-08", flatNo: "C-101", raisedBy: "Resident", raisedAt: "Jul 12, 11:42 PM", status: "ACKNOWLEDGED" },
 ];
 
+export interface Comment {
+  id: string;
+  author: string;
+  role: string;
+  body: string;
+  postedAt: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;
   body: string;
   postedBy: string;
   postedAt: string;
+  comments?: Comment[];
 }
 
 export const announcements: Announcement[] = [
@@ -164,6 +180,10 @@ export const announcements: Announcement[] = [
     body: "Water supply will be suspended from 10 AM to 1 PM for tank cleaning across all blocks.",
     postedBy: "Society Official",
     postedAt: "Jul 12, 2026",
+    comments: [
+      { id: "COM-01", author: "Resident C101", role: "Resident", body: "Will the clubhouse water also be turned off?", postedAt: "Jul 12, 4:15 PM" },
+      { id: "COM-02", author: "Society Official", role: "Official", body: "Yes, the main supply header is being cleaned, so all outlets are affected.", postedAt: "Jul 12, 5:00 PM" }
+    ]
   },
   {
     id: "ANN-30",
@@ -171,6 +191,9 @@ export const announcements: Announcement[] = [
     body: "AGM will be held at the Community Hall at 6 PM. Attendance is encouraged for all flat owners.",
     postedBy: "Society Official",
     postedAt: "Jul 9, 2026",
+    comments: [
+      { id: "COM-03", author: "Resident A102", role: "Resident", body: "Can we submit agenda items in advance?", postedAt: "Jul 10, 9:00 AM" }
+    ]
   },
   {
     id: "ANN-29",
@@ -178,6 +201,7 @@ export const announcements: Announcement[] = [
     body: "Please avoid nails/adhesives on common area walls. Contact the office for approved decoration points.",
     postedBy: "Society Official",
     postedAt: "Jul 5, 2026",
+    comments: []
   },
 ];
 

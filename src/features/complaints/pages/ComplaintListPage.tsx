@@ -7,24 +7,51 @@ import { complaints, useMockData } from "../../../api/mockData";
 export default function ComplaintListPage() {
   useMockData();
 
-  const [selected, setSelected] = useState(complaints[0]?.id ?? null);
-  const active = complaints.find((c) => c.id === selected);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const displayed = complaints.filter((c) => statusFilter === "ALL" || c.status === statusFilter);
+
+  const [selected, setSelected] = useState<string | null>(null);
+  const activeId = selected || displayed[0]?.id || null;
+  const active = displayed.find((c) => c.id === activeId);
 
   return (
     <div>
       <PageHeader code="C-02 / MY COMPLAINTS" title="Complaint Status" description="Track every complaint you've raised." />
 
-      {complaints.length === 0 ? (
+      {/* Segmented Filter Bar */}
+      <div className="flex gap-4 mb-5 items-center justify-between text-xs font-mono">
+        <div className="inline-flex rounded-sm border border-blueprint-700 bg-blueprint-950/40 p-0.5">
+          {["ALL", "OPEN", "IN_PROGRESS", "RESOLVED"].map((status) => (
+            <button
+              key={status}
+              onClick={() => {
+                setStatusFilter(status);
+                setSelected(null); // reset selected
+              }}
+              className={`rounded-xs px-2.5 py-1 transition ${
+                statusFilter === status
+                  ? "bg-blueprint-700 text-signal font-semibold"
+                  : "text-ink-300 hover:text-ink-100"
+              }`}
+            >
+              {status.replace("_", " ")}
+            </button>
+          ))}
+        </div>
+        <span className="text-ink-500 font-mono">Count: {displayed.length}</span>
+      </div>
+
+      {displayed.length === 0 ? (
         <EmptyState title="No complaints raised yet" hint="Use Raise Complaint to report an issue." />
       ) : (
         <div className="grid grid-cols-5 gap-6">
-          <div className="col-span-2 bp-card divide-y divide-blueprint-700">
-            {complaints.map((c) => (
+          <div className="col-span-2 bp-card divide-y divide-blueprint-700 max-h-[450px] overflow-y-auto">
+            {displayed.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelected(c.id)}
                 className={`w-full text-left px-4 py-3.5 transition ${
-                  selected === c.id ? "bg-blueprint-700/50" : "hover:bg-blueprint-800"
+                  activeId === c.id ? "bg-blueprint-700/50" : "hover:bg-blueprint-800"
                 }`}
               >
                 <p className="text-sm text-ink-100 truncate">{c.title}</p>
