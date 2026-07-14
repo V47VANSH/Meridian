@@ -1,8 +1,10 @@
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { guestPasses } from "../../../api/mockData";
+import { guestPasses, useMockData } from "../../../api/mockData";
 
 export default function GuestPassHistoryPage() {
+  useMockData();
+
   return (
     <div>
       <PageHeader code="V-02 / PASS HISTORY" title="Guest Pass History" />

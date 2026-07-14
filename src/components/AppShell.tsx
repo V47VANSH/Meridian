@@ -4,6 +4,7 @@ import { useAuthStore } from "../store/authStore";
 import { ROLE_LABELS } from "../lib/constants";
 import { NAV_BY_ROLE } from "../lib/nav";
 import logo from "../assets/logo.svg";
+import AiChatBox from "./AiChatBox";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -62,6 +63,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <main className="flex-1 min-w-0">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
       </main>
+
+      {/* AI Chat Assistant */}
+      <AiChatBox />
     </div>
   );
 }
+

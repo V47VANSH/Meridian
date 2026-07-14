@@ -2,9 +2,11 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
 import StatusBadge from "../../../components/StatusBadge";
-import { complaints, invoices, residents, bookings } from "../../../api/mockData";
+import { complaints, invoices, residents, bookings, useMockData } from "../../../api/mockData";
 
 export default function OfficialDashboard() {
+  useMockData();
+
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
   const overdue = invoices.filter((i) => i.status === "OVERDUE");
   const pendingDues = residents.filter((r) => r.duesStatus === "PENDING");

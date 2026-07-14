@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
-import { invoices, complaints, announcements } from "../../../api/mockData";
+import { invoices, complaints, announcements, useMockData } from "../../../api/mockData";
 
 export default function NonResidentDashboard() {
+  useMockData();
+
   const pendingInvoice = invoices.find((i) => i.status !== "PAID");
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
 

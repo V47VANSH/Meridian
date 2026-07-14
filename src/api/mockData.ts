@@ -2,6 +2,27 @@
 // client described in the architecture doc). Swap each of these for real
 // React Query hooks once the backend publishes its OpenAPI spec.
 
+import { useState, useEffect } from "react";
+
+let listeners: (() => void)[] = [];
+
+export function subscribeToMockData(listener: () => void) {
+  listeners.push(listener);
+  return () => {
+    listeners = listeners.filter((l) => l !== listener);
+  };
+}
+
+export function notifyMockDataChanged() {
+  listeners.forEach((l) => l());
+}
+
+export function useMockData() {
+  const [, setTick] = useState(0);
+  useEffect(() => subscribeToMockData(() => setTick((t) => t + 1)), []);
+}
+
+
 export interface Invoice {
   id: string;
   month: string;
@@ -83,6 +104,7 @@ export const facilities: Facility[] = [
   { id: "tennis", name: "Tennis Court" },
   { id: "pool", name: "Swimming Pool" },
   { id: "hall", name: "Community Hall" },
+  { id: "gym", name: "Gymnasium" },
 ];
 
 export const timeSlots = ["06:00–07:00", "07:00–08:00", "17:00–18:00", "18:00–19:00", "19:00–20:00"];

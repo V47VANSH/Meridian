@@ -2,9 +2,11 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
 import StatusBadge from "../../../components/StatusBadge";
-import { invoices, complaints, bookings, announcements } from "../../../api/mockData";
+import { invoices, complaints, bookings, announcements, useMockData } from "../../../api/mockData";
 
 export default function ResidentDashboard() {
+  useMockData();
+
   const pendingInvoice = invoices.find((i) => i.status !== "PAID");
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
   const upcomingBooking = bookings[0];

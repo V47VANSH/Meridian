@@ -1,7 +1,9 @@
 import PageHeader from "../../../components/PageHeader";
-import { announcements } from "../../../api/mockData";
+import { announcements, useMockData } from "../../../api/mockData";
 
 export default function AnnouncementFeedPage() {
+  useMockData();
+
   return (
     <div>
       <PageHeader code="A-01 / ANNOUNCEMENTS" title="Society Announcements" description="Stay updated, wherever you are." />

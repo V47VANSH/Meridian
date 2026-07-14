@@ -2,9 +2,11 @@ import { useState } from "react";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import EmptyState from "../../../components/EmptyState";
-import { complaints } from "../../../api/mockData";
+import { complaints, useMockData } from "../../../api/mockData";
 
 export default function ComplaintListPage() {
+  useMockData();
+
   const [selected, setSelected] = useState(complaints[0]?.id ?? null);
   const active = complaints.find((c) => c.id === selected);
 

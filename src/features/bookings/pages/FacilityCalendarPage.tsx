@@ -1,13 +1,15 @@
 import { useState } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { facilities, timeSlots, bookings } from "../../../api/mockData";
-
-const takenSet = new Set(bookings.map((b) => `${b.facility}|${b.date}|${b.slot}`));
+import { facilities, timeSlots, bookings, useMockData } from "../../../api/mockData";
 
 export default function FacilityCalendarPage() {
+  useMockData();
   const [facility, setFacility] = useState(facilities[0].name);
   const [date, setDate] = useState("2026-07-14");
   const [confirmed, setConfirmed] = useState<string | null>(null);
+
+  const takenSet = new Set(bookings.map((b) => `${b.facility}|${b.date}|${b.slot}`));
+
 
   return (
     <div>
