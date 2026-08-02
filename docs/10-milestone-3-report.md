@@ -574,6 +574,83 @@ record cannot silently go stale.
 
 ---
 
+## 6. User Feedback
+
+The working endpoints were demonstrated through the Swagger UI at `/api/docs`,
+driving each epic end to end against the seeded demo society.
+
+### Feedback received
+
+| # | From | Feedback | Our response |
+|---|---|---|---|
+| 1 | Resident perspective | "Seeing `PENDING` on an invoice that is already two weeks past its due date is confusing — it should say overdue." | Already handled: status is recomputed on read, so an unpaid invoice past its due date reports `OVERDUE` without waiting for a nightly job. Demonstrated live; covered by `test_overdue_status_is_applied_on_read`. |
+| 2 | Resident perspective | "When I press SOS I need to see that somebody actually picked it up, not just that the button worked." | Already handled: `POST /sos/{id}/acknowledge` pushes a "Help is on the way" notification back to the raiser. Shown in the demo; covered by `test_guard_can_acknowledge_an_sos`. |
+| 3 | Society official | "The complaint queue is right to put urgent items first, but I also want to see which ones the system was unsure about." | Accepted. `needs_manual_triage` is already returned per complaint; a dedicated filter (`GET /complaints?needs_triage=true`) is queued for Sprint 5. |
+| 4 | Society official | "Forcing every complaint through IN_PROGRESS is annoying when staff fix something on the spot." | Noted, not changing. The intermediate state is what makes the audit trail meaningful. Sprint 5 will add a one-tap "resolve immediately" action in the UI that issues both transitions, keeping the history complete without the extra step for the user. |
+| 5 | Security guard | "Scanning is fast, but if a pass is rejected I need to know *why* on screen." | Already handled: every rejection returns a specific `reason` string — used, revoked, expired, or not yet valid — rather than a bare false. |
+| 6 | Non-resident owner | "I want to generate a pass for my tenant's visitor while I'm out of the city." | Already supported: `NON_RESIDENT_OWNER` is an authorised pass issuer for any flat they are linked to. |
+| 7 | Team review | "My active-passes list still shows a pass from yesterday." | **Confirmed as a genuine defect** — this is the mismatch documented in §5. Scheduled for Sprint 5. |
+
+### What the feedback changed
+
+- One new defect confirmed and scheduled (§5).
+- One new endpoint filter accepted for Sprint 5 (triage filter, item 3).
+- One request deliberately declined with a UI alternative planned (item 4).
+- Four items confirmed as already working, validating the Milestone 2 design
+  decisions behind them.
+
+---
+
+## 7. Plan for the Next Sprint (Sprint 5)
+
+### Priority 1 — Close out defects and feedback
+
+| Item | Description |
+|---|---|
+| Fix expired-pass listing | Derive `ACTIVE` from the validity window on the list path; flips TC-11 from `xfail` to `pass` |
+| Manual-triage filter | Add `GET /complaints?needs_triage=true` for the official's queue (feedback item 3) |
+| Quick-resolve flow | UI action issuing both transitions so staff can close a complaint in one tap while keeping full history (feedback item 4) |
+
+### Priority 2 — Frontend integration
+
+| Item | Description |
+|---|---|
+| Generate the typed API client | Codegen from `openapi.yaml` into the React app, replacing `src/api/mockData.ts` |
+| Wire the pages to live endpoints | Connect the existing UI-V2 pages to real data, epic by epic |
+| Auth flow in the client | Token storage, automatic refresh on 401, role-based route guards |
+
+### Priority 3 — Deployment and infrastructure
+
+| Item | Description |
+|---|---|
+| Migrate to PostgreSQL | Switch `DATABASE_URL` to Supabase; add Alembic migrations in place of `create_all` |
+| CI pipeline | GitHub Actions running the pytest suite and the OpenAPI export on every pull request |
+| Deploy the API | Host the backend with environment-based configuration and real secrets |
+
+### Priority 4 — Complete the ML integration
+
+| Item | Description |
+|---|---|
+| Stand up the ML service | Deploy the FastAPI classifier so `ML_SERVICE_URL` resolves and real predictions replace the keyword fallback |
+| Train the complaint classifier | Train on labelled complaint text; measure accuracy against the keyword baseline |
+| Payment-risk model | Replace the deterministic scoring formula with the trained model |
+
+### Priority 5 — Real-time and notifications
+
+| Item | Description |
+|---|---|
+| WebSocket gateway | Live SOS alerts and booking-slot updates instead of polling |
+| Real notification channels | Wire push, email and SMS providers behind the existing `notify()` interface |
+
+### Definition of done for Sprint 5
+
+- TC-11 passes; no `xfail` markers remain in the suite
+- The React frontend runs against the live API with no mock data
+- The suite runs green in CI on every pull request
+- The API is deployed and reachable from the hosted frontend
+
+---
+
 ## 8. Submission Contents
 
 | Deliverable | Location |
