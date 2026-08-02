@@ -1,7 +1,7 @@
 """Notification fan-out.
 
-In production `notify()` enqueues a background job (BullMQ in the design doc)
-so a flaky SMS or email provider can never slow down or fail an API request.
+In production `notify()` enqueues a background job on the Redis queue, so a
+flaky SMS or email provider can never slow down or fail an API request.
 Here the in-app row is written synchronously and the external channels are
 resolved and logged, keeping the same call signature and the same persisted
 result for the in-app feed.

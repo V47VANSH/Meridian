@@ -4,7 +4,7 @@ Owner: Person C · Parent doc: [00 — Architecture Overview](00-architecture-ov
 
 ## 1. Stack
 
-PostgreSQL, hosted via **Supabase** (free tier) — chosen because it bundles Postgres + object storage (for guest-pass QR images, complaint photo attachments) on one free account, avoiding a separate S3/R2 setup. Prisma is the ORM/migration tool used by the backend.
+PostgreSQL, hosted via **Supabase** (free tier) — chosen because it bundles Postgres + object storage (for guest-pass QR images, complaint photo attachments) on one free account, avoiding a separate S3/R2 setup. **SQLAlchemy 2.0** is the ORM used by the backend, with **Alembic** for migrations. Enums are stored as VARCHAR with a CHECK constraint rather than native Postgres enum types, which keeps values readable in the database and avoids the migration cost of altering an enum.
 
 ## 2. Entity-Relationship Overview
 
@@ -71,10 +71,11 @@ Tenant (society)
 
 Every tenant-scoped table has a non-nullable `tenant_id`. Two layers of enforcement:
 
-1. **Application layer**: a Prisma Client Extension wraps every query and auto-appends `where: { tenant_id: currentTenantId }`, where `currentTenantId` comes from request-scoped context (`nestjs-cls`) populated from the JWT at the start of the request. A developer writing a new query cannot forget the tenant filter — it's injected for them.
+1. **Application layer**: a `get_tenant_id` dependency resolves the society scope from the verified JWT at the start of each request. Because it is a declared dependency, a route that touches tenant-scoped data states its scope in its own signature, and every scoped query filters on that value. The scope is never read from a request body or query parameter, so a caller cannot ask for another society's data by editing a payload.
 2. **Row-level defense**: composite indexes are always `(tenant_id, ...)` first, so a query that somehow omitted the tenant filter would still be structurally unusual to write and easy to catch in review.
+3. **Test layer**: a dedicated suite attempts every cross-society access path — invoice, complaint, booking, guest pass, announcement — using a token belonging to a *different* society, which is the realistic shape of the attack. Isolation is therefore enforced by tests, not left as a convention.
 
-This two-layer approach means a bug in one layer (e.g. a raw query that bypasses the Prisma extension) doesn't automatically mean cross-tenant data exposure.
+Cross-tenant reads return **404, not 403**: confirming that a record exists would itself leak that another society holds that id.
 
 ## 5. Indexing Strategy
 
@@ -89,9 +90,11 @@ This two-layer approach means a bug in one layer (e.g. a raw query that bypasses
 
 ## 6. Migrations & Environments
 
-- **Prisma Migrate** for schema changes; every migration is a committed SQL file in `prisma/migrations/`, reviewed in PR like any other code change.
-- Local dev: docker-compose Postgres. CI: ephemeral Postgres service container, migrations run before the integration test suite. Production: Supabase-hosted Postgres, migrations applied via a GitHub Actions deploy step (`prisma migrate deploy`), never `migrate dev` against prod.
-- **Seeding**: a `prisma/seed.ts` script creates 1–2 demo tenants with representative data (flats, a handful of users per role, sample invoices/complaints/bookings) — used both for local dev and to populate the Playwright E2E environment.
+- **Alembic** for schema changes; every migration is a committed, reviewed script under `alembic/versions/`, treated like any other code change.
+- Local dev and the test suite run on SQLite, created directly from the model metadata so the project clones and runs with no database server. CI: ephemeral Postgres service container with `alembic upgrade head` before the integration suite. Production: Supabase-hosted Postgres, migrations applied via a GitHub Actions deploy step — never autogenerate against prod.
+- **Seeding**: `app/db/seed.py` creates a demo society with representative data (flats, a user per role, sample invoices/complaints/facilities/slots/announcements) — used for local dev and to populate the E2E environment. It is idempotent: it does nothing if a society already exists.
+
+> **Current state**: the schema is created from model metadata (`Base.metadata.create_all`) for local and test runs. Alembic is introduced with the PostgreSQL migration in Sprint 5; the models are already the single source of truth, so the first revision is generated from them.
 
 ## 7. Backups
 

@@ -327,24 +327,29 @@ erDiagram
 
 Every table marked ✅ in the Table Inventory carries a non-nullable `tenant_id` column. Two enforcement layers guarantee cross-tenant data never leaks:
 
-**Layer 1 — Application (Prisma Client Extension)**  
-A Prisma Client Extension wraps every query and auto-appends `WHERE tenant_id = $currentTenantId`. The `currentTenantId` is populated from the decoded JWT at the start of each HTTP request via `nestjs-cls` (request-scoped async local storage). A developer writing a new query *cannot forget* this filter — it is injected automatically.
+**Layer 1 — Application (`get_tenant_id` dependency)**  
+The society scope is resolved once per request by a FastAPI dependency that reads the `tenant_id` claim from the decoded JWT. Because it is a declared dependency, a route that touches tenant-scoped data states its scope in its own signature, and every tenant-scoped query filters on that value. The scope is never taken from a request body or query parameter, so a caller cannot reach another society's data by editing a payload.
 
 **Layer 2 — Database (Composite Indexes)**  
-All performance indexes are prefixed `(tenant_id, ...)`. A raw query that somehow bypassed the Prisma extension would still be structurally unusual and trivially catchable in code review.
+All performance indexes are prefixed `(tenant_id, ...)`. A raw query that omitted the tenant filter would still be structurally unusual and trivially catchable in code review.
+
+**Layer 3 — Tests**  
+A dedicated suite attempts every cross-society access path — invoice, complaint, booking, guest pass, announcement — using a token belonging to a *different* society, which is the realistic shape of the attack. Isolation is enforced by tests rather than left as a convention.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  HTTP Request                                                         │
-│    JWT decoded → tenant_id extracted → stored in nestjs-cls context  │
+│    JWT verified → tenant_id claim extracted by get_tenant_id()       │
 │    ↓                                                                  │
-│  Prisma Client Extension                                              │
-│    auto-injects WHERE tenant_id = <ctx.tenantId> on every query      │
+│  Router                                                               │
+│    every tenant-scoped query filters WHERE tenant_id = <scope>       │
 │    ↓                                                                  │
 │  PostgreSQL                                                           │
 │    composite index (tenant_id, ...) ensures efficient, isolated query │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+Cross-tenant reads return **404, not 403** — confirming a record exists would itself leak that another society holds that id.
 
 ---
 
@@ -352,10 +357,12 @@ All performance indexes are prefixed `(tenant_id, ...)`. A raw query that someho
 
 | Environment | Tool | Approach |
 |---|---|---|
-| **Local dev** | `prisma migrate dev` | Docker-compose Postgres; auto-applies + generates migration SQL |
-| **CI** | `prisma migrate deploy` | Ephemeral Postgres service container; migrations run before integration tests |
-| **Production** | `prisma migrate deploy` (GitHub Actions deploy step) | Never `migrate dev` against prod; migrations committed as SQL files and reviewed in PR |
-| **Seeding** | `prisma/seed.ts` | Creates 1–2 demo tenants with representative data: flats, users per role, invoices, complaints, bookings |
+| **Local dev / tests** | `Base.metadata.create_all` on SQLite | No database server needed; the project clones and runs immediately |
+| **CI** | `alembic upgrade head` | Ephemeral Postgres service container; migrations run before the integration suite |
+| **Production** | `alembic upgrade head` (GitHub Actions deploy step) | Never autogenerate against prod; revisions committed and reviewed in PR |
+| **Seeding** | `app/db/seed.py` | Creates a demo society with flats, a user per role, invoices, a complaint, facilities, slots and an announcement. Idempotent — does nothing if a society already exists |
+
+> **Current state**: the schema is created from the SQLAlchemy model metadata for local and test runs. Alembic is introduced alongside the PostgreSQL migration in Sprint 5; because the models are already the single source of truth, the first revision is generated from them rather than hand-written.
 
 ---
 

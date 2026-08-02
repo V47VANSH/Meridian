@@ -38,18 +38,22 @@ feedback.
 
 ### Note on the implementation stack
 
-The Milestone 2 design document specifies NestJS for the backend. The Milestone
-3 deliverable requires pytest test cases, which is a Python tool. Rather than
-run pytest over HTTP against a Node server — which would need the server
-running before the tests could be graded, and would make the tests integration
-tests rather than unit tests — the backend was implemented in **FastAPI**.
+The backend is built with **FastAPI (Python 3.11)**, as specified in
+[02 — Backend Architecture](02-backend-architecture.md). Two reasons drove that
+choice:
 
-This keeps the architecture from Milestone 2 intact: the same modular layout,
-the same 18-table schema, the same tenant-isolation and contract-first
-approach. Python was already the chosen language for the ML service in the
-design, so the stack is now uniform rather than split. The submitted tests run
-directly from the ZIP with `pytest` and need no server, no PostgreSQL and no
-Redis.
+1. **One language across both services.** The ML service was already Python, so
+   a Python backend means the team maintains one toolchain rather than two.
+2. **Directly testable with pytest.** The endpoints are exercised in-process
+   through FastAPI's `TestClient`, so the submitted tests are true unit and
+   integration tests rather than HTTP calls against a separately running
+   server. They run straight from the ZIP with `pytest` — no server, no
+   PostgreSQL and no Redis.
+
+Everything else from the Milestone 2 design carries over unchanged: the same
+modular layout (one router per epic), the same 18-table schema, the same
+tenant-isolation model, and the same contract-first workflow where the backend
+publishes an OpenAPI spec the frontend codegens against.
 
 ---
 

@@ -17,21 +17,21 @@ graph TD
         FE --- SW
     end
 
-    subgraph Backend["NestJS API — Modular Monolith (Render)"]
+    subgraph Backend["FastAPI API — Modular Monolith (Render)"]
         direction TB
-        AUTH["AuthModule"]
-        TENANT["TenantModule"]
-        USER["UserModule"]
-        MAINT["MaintenanceModule"]
-        COMP["ComplaintModule"]
-        BOOK["BookingModule"]
-        VIS["VisitorModule"]
-        ANN["AnnouncementModule"]
-        NOTIF["NotificationModule"]
-        AUDIT["AuditModule"]
-        RT["RealtimeGateway\n(Socket.IO)"]
-        MLC["MLClientModule"]
-        PRISMA["PrismaService\n(Tenant-scoped ORM)"]
+        AUTH["auth router"]
+        TENANT["tenants router"]
+        USER["users + flats router"]
+        MAINT["maintenance router"]
+        COMP["complaints router"]
+        BOOK["bookings router"]
+        VIS["visitors router"]
+        ANN["announcements router"]
+        NOTIF["NotificationService"]
+        AUDIT["AuditService"]
+        RT["RealtimeGateway\n(WebSockets)"]
+        MLC["MLClient"]
+        ORM["SQLAlchemy Session\n(Tenant-scoped)"]
     end
 
     subgraph ML["ML Service — FastAPI (Render)"]
@@ -43,8 +43,8 @@ graph TD
     end
 
     subgraph Infra["Infrastructure"]
-        REDIS["Redis (Upstash)\nCache · Locks · BullMQ · WS Pub-Sub"]
-        PG["PostgreSQL (Supabase)\n15 tables · Tenant isolation"]
+        REDIS["Redis (Upstash)\nCache · Locks · Job queue · WS Pub-Sub"]
+        PG["PostgreSQL (Supabase)\n18 tables · Tenant isolation"]
         STOR["Supabase Storage\nQR images · Photos · ML artifacts"]
     end
 
@@ -61,24 +61,24 @@ graph TD
     FE -->|"REST + JWT"| BOOK
     FE -->|"REST + JWT"| VIS
     FE -->|"REST + JWT"| ANN
-    FE <-->|"WebSocket (Socket.IO)"| RT
+    FE <-->|"WebSocket"| RT
 
-    MAINT --> PRISMA
-    COMP --> PRISMA
-    BOOK --> PRISMA
-    VIS --> PRISMA
-    ANN --> PRISMA
-    AUTH --> PRISMA
-    USER --> PRISMA
-    TENANT --> PRISMA
-    AUDIT --> PRISMA
-    NOTIF --> PRISMA
+    MAINT --> ORM
+    COMP --> ORM
+    BOOK --> ORM
+    VIS --> ORM
+    ANN --> ORM
+    AUTH --> ORM
+    USER --> ORM
+    TENANT --> ORM
+    AUDIT --> ORM
+    NOTIF --> ORM
 
-    PRISMA -->|"SQL via Prisma ORM"| PG
+    ORM -->|"SQL via SQLAlchemy"| PG
 
     BOOK -->|"Redis lock on slot_id"| REDIS
-    NOTIF -->|"BullMQ jobs"| REDIS
-    RT -->|"Redis pub-sub adapter"| REDIS
+    NOTIF -->|"queued jobs"| REDIS
+    RT -->|"Redis pub/sub"| REDIS
 
     MAINT -->|"HTTP + shared secret"| MLC
     COMP -->|"HTTP + shared secret"| MLC
@@ -86,7 +86,7 @@ graph TD
     MLC --> PR
 
     MAINT -->|"Razorpay Orders API"| RZP
-    RZP -->|"Webhook HMAC verified"| MAINT
+    RZP -->|"HMAC-verified confirmation"| MAINT
 
     NOTIF -->|"Web Push"| SW
     NOTIF -->|"Email"| SG
@@ -101,7 +101,7 @@ graph TD
 
 ## 2. Frontend Components
 
-**Technology**: React 18 + TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand, React Router, Socket.IO client, vite-plugin-pwa.
+**Technology**: React 18 + TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand, React Router, native WebSocket client, vite-plugin-pwa.
 
 ### 2.1 App Shell & Providers
 
@@ -110,7 +110,7 @@ graph TD
 | `AppRouter` | Role-based route guard; reads JWT role from auth store; redirects unauthorized access |
 | `AuthProvider` | Zustand store for auth session (access token, decoded claims, refresh logic) |
 | `QueryClientProvider` | TanStack Query cache; configured with stale-time and retry policies |
-| `SocketProvider` | Opens Socket.IO connection on login; joins `tenant:{id}:user:{id}` and `tenant:{id}:role:{role}` rooms |
+| `SocketProvider` | Opens the WebSocket connection on login; server subscribes it to `tenant:{id}:user:{id}` and `tenant:{id}:role:{role}` channels |
 | `ServiceWorker` | Registers Web Push subscription; handles offline caching of app shell |
 
 ### 2.2 Feature Components (by epic)
@@ -142,44 +142,42 @@ graph TD
 |---|---|
 | `src/api/generated/` | Auto-generated typed client from OpenAPI spec via `openapi-typescript-codegen` |
 | `src/api/hooks/` | React Query hooks wrapping the generated client (e.g. `useInvoices()`, `useComplaints()`) |
-| `src/hooks/useSocket.ts` | Centralised Socket.IO event subscriptions with cleanup on unmount |
+| `src/hooks/useSocket.ts` | Centralised WebSocket event subscriptions with cleanup on unmount |
 | `src/hooks/useAuth.ts` | Auth store selector + refresh token logic |
 
 ---
 
-## 3. Backend Components (NestJS Modules)
+## 3. Backend Components (FastAPI Routers)
 
-**Technology**: NestJS (Node.js + TypeScript), Prisma ORM, Redis (Upstash), BullMQ, Socket.IO — deployed as a modular monolith on Render.
+**Technology**: FastAPI (Python 3.11), SQLAlchemy 2.0 ORM, Alembic, Redis (Upstash), WebSockets — deployed as a modular monolith on Render.
 
-Each module follows the pattern: `*.controller.ts` + `*.service.ts` + `*.module.ts` + `dto/`.
+Each epic follows the pattern: one `api/v1/*.py` router + its Pydantic schemas in `schemas.py` + its own test module. Shared concerns are injected per route with `Depends()`, so a route's auth, role and tenant requirements are readable directly from its signature.
 
-| Module | Controller Routes (abbreviated) | Service Responsibilities | External Dependencies |
+| Router / Service | Routes (abbreviated) | Responsibilities | Dependencies |
 |---|---|---|---|
-| **AuthModule** | `POST /auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout` | JWT generation, refresh token rotation, password hashing | `bcrypt`, `jsonwebtoken`, Prisma |
-| **TenantModule** | `POST /tenants`, `GET /tenants/:id`, `PATCH /tenants/:id` | Society onboarding and CRUD (SuperAdmin only) | Prisma |
-| **UserModule** | `GET /users`, `POST /users`, `PATCH /users/:id`, `DELETE /users/:id` | Resident/staff management per tenant; role assignment | Prisma |
-| **MaintenanceModule** | `GET /maintenance/invoices`, `POST /maintenance/invoices/:id/pay`, `POST /webhooks/razorpay` | Monthly invoice generation (BullMQ repeatable job); Razorpay order creation; webhook HMAC verification; ML risk score trigger | Razorpay SDK, MLClientModule, BullMQ, Prisma |
-| **ComplaintModule** | `POST /complaints`, `GET /complaints`, `PATCH /complaints/:id/assign`, `PATCH /complaints/:id/status` | Complaint creation → ML classify → status transitions → AuditLog | MLClientModule, AuditModule, NotificationModule, Prisma |
-| **BookingModule** | `GET /bookings/facilities`, `GET /bookings/slots`, `POST /bookings`, `DELETE /bookings/:id` | Redis lock on slot → DB unique constraint check → booking confirm; realtime slot-taken broadcast | Redis (lock), RealtimeGateway, NotificationModule, Prisma |
-| **VisitorModule** | `POST /visitors/guest-passes`, `GET /visitors/guest-passes`, `POST /visitors/guest-passes/:token/verify`, `POST /sos`, `POST /sos/:id/acknowledge` | Signed QR token generation; atomic single-use verification; SOS incident lifecycle | RealtimeGateway, NotificationModule, Prisma |
-| **AnnouncementModule** | `POST /announcements`, `GET /announcements` | Announcement creation with audience targeting; feed retrieval | NotificationModule, Prisma |
-| **NotificationModule** | Internal `notify()` call only — no public REST endpoint | BullMQ job enqueue; worker dispatches to Push/Email/SMS independently; writes `Notification` row | BullMQ, Web Push (VAPID), SendGrid, Twilio, Prisma |
-| **AuditModule** | `GET /audit-logs` (official/admin only) | Append-only `AuditLog` writer; called by other modules on every state-changing action | Prisma |
-| **RealtimeGateway** | WS events: `sos.raised`, `sos.acknowledged`, `complaint.status_changed`, `booking.slot_taken` | Socket.IO server; JWT-verified room join; Redis pub-sub adapter for multi-instance scaling | Redis (`@socket.io/redis-adapter`) |
-| **MLClientModule** | Internal HTTP calls only | Thin HTTP client wrapping ML service endpoints; 2 s timeout + fallback logic | `axios`, ML Service |
-| **PrismaService** | Internal ORM layer | Prisma Client Extension auto-injects `tenant_id` filter on every query from `nestjs-cls` context | Supabase Postgres |
+| **auth** | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `GET /auth/me` | JWT issuing, rotating refresh tokens (hash-at-rest), PBKDF2 password hashing | `PyJWT`, `hashlib`, Session |
+| **tenants** | `POST /tenants`, `GET /tenants`, `POST /flats`, `GET /flats`, `POST /flats/{id}/occupants`, `GET /users` | Society onboarding (SuperAdmin); flat registry, occupant links and directory (Official) | AuditService, Session |
+| **maintenance** | `GET /maintenance/invoices`, `POST /maintenance/invoices`, `POST /maintenance/invoices/{id}/pay`, `POST /maintenance/invoices/{id}/payments/confirm`, `GET /maintenance/summary`, `GET /maintenance/flats/{id}/risk-score` | Invoice generation, gateway order creation, HMAC signature verification before settlement, read-time overdue evaluation, ML risk score | MLClient, NotificationService, AuditService, Session |
+| **complaints** | `POST /complaints`, `GET /complaints`, `GET /complaints/{id}`, `PATCH /complaints/{id}/status`, `POST /complaints/{id}/assign` | Creation → ML classify (with fallback) → validated lifecycle transitions → history + AuditLog | MLClient, NotificationService, AuditService, Session |
+| **bookings** | `POST /facilities`, `GET /facilities`, `POST /facilities/{id}/slots`, `GET /facilities/{id}/slots`, `POST /bookings`, `GET /bookings`, `POST /bookings/{id}/cancel` | Slot lock → confirmed-booking check → partial unique index as second defence; live availability | Redis (lock), NotificationService, AuditService, Session |
+| **visitors** | `POST /visitors/guest-passes`, `GET /visitors/guest-passes`, `POST /visitors/guest-passes/{token}/verify`, `POST /visitors/guest-passes/{id}/revoke`, `POST /sos`, `GET /sos`, `POST /sos/{id}/acknowledge`, `POST /sos/{id}/resolve` | Random QR token generation; atomic single-use verification with reasoned rejections; SOS incident lifecycle | NotificationService, AuditService, Session |
+| **announcements** | `POST /announcements`, `GET /announcements`, `GET /notifications`, `POST /notifications/{id}/read` | Audience-targeted publishing; per-user in-app notification feed | NotificationService, AuditService, Session |
+| **NotificationService** | Internal `notify()` / `notify_many()` — no public route | Resolves channels per notification type; dispatches each independently; always writes the `Notification` row for the in-app feed | Redis queue, Web Push (VAPID), SendGrid, Twilio, Session |
+| **AuditService** | Internal `record()` — no public route | Append-only `AuditLog` writer; called on every state-changing action | Session |
+| **RealtimeGateway** | WS events: `sos.raised`, `sos.acknowledged`, `complaint.status_changed`, `booking.slot_taken` | JWT-verified connection; server-assigned channel subscription; Redis pub/sub for multi-instance scaling | Redis pub/sub |
+| **MLClient** | Internal HTTP calls only | Wraps the ML service endpoints; 2 s timeout, keyword fallback on error or low confidence | ML Service |
+| **Session** | Internal ORM layer | Request-scoped SQLAlchemy session; tenant-scoped queries filter on the `get_tenant_id` dependency | Supabase Postgres |
 
 ### 3.1 Cross-Cutting / Common Layer
 
 | Component | Responsibility |
 |---|---|
-| `JwtAuthGuard` | Verifies JWT access token on every protected route |
-| `RolesGuard` | Checks `@Roles()` decorator against JWT role claim |
-| `TenantScopedGuard` | Verifies resource `tenant_id` matches JWT `tenant_id`; globally applied, opt-out model |
-| `ThrottlerGuard` | Redis-backed rate limiting; tighter limits on `/auth/*` and `/sos` |
-| `HttpExceptionFilter` | Maps all errors to `{ statusCode, error, message, requestId }` |
-| `RequestIdMiddleware` | Generates UUID per request; included in logs and Sentry reports |
-| `TenantContextInterceptor` | Populates `nestjs-cls` store with `tenant_id` from JWT for Prisma middleware |
+| `get_current_user` | Verifies the JWT access token and resolves the caller on every protected route |
+| `require_roles(...)` | Route dependency checking the JWT role claim against the roles a route allows |
+| `get_tenant_id` | Supplies the society scope from the JWT claim; every tenant-scoped query filters on it |
+| Rate-limit middleware | Redis-backed; tighter limits on `/auth/*` and `/sos` |
+| Exception handlers | Map application errors, framework errors, validation failures and unhandled exceptions to `{ statusCode, error, message, requestId }` |
+| Request-id middleware | Generates a UUID per request; returned as `X-Request-Id` and included in logs and error reports |
 
 ---
 
@@ -202,13 +200,13 @@ Each module follows the pattern: `*.controller.ts` + `*.service.ts` + `*.module.
 
 | Component | Provider | Role |
 |---|---|---|
-| **PostgreSQL** | Supabase (free tier) | Primary data store; 15 tables; partial unique indexes; row-level tenant isolation via Prisma middleware |
+| **PostgreSQL** | Supabase (free tier) | Primary data store; 18 tables; partial unique indexes; tenant isolation scoped from the JWT claim |
 | **Supabase Storage** | Supabase | Object storage for complaint photos, guest-pass QR images, ML model artifacts |
 | **Redis — Cache** | Upstash (free tier) | Short-lived caching (e.g. facility slot availability) |
 | **Redis — Locks** | Upstash | `SET NX EX` distributed lock keyed on `slot_id` to prevent double-booking race condition |
-| **Redis — BullMQ Queue** | Upstash | Notification job queue; decouples slow channel dispatch from the HTTP request lifecycle |
-| **Redis — Socket.IO Adapter** | Upstash | Pub-sub adapter allows Socket.IO to fan-out across multiple Render instances |
-| **Razorpay** | External | Payment gateway (test/sandbox mode); Order creation API + HMAC-verified webhook |
+| **Redis — Job Queue** | Upstash | Notification job queue; decouples slow channel dispatch from the HTTP request lifecycle |
+| **Redis — Pub/Sub** | Upstash | Allows WebSocket events to fan out across multiple Render instances |
+| **Razorpay** | External | Payment gateway (test/sandbox mode); order creation API + HMAC-verified confirmation |
 | **SendGrid** | External | Transactional email for payment due/overdue notices |
 | **Twilio** | External | SMS for SOS alerts and payment-critical notices |
 | **Web Push (VAPID)** | Browser standard | In-browser push for all notification types; subscription stored per user |
@@ -220,18 +218,18 @@ Each module follows the pattern: `*.controller.ts` + `*.service.ts` + `*.module.
 
 | Interaction | From → To | Protocol | Notes |
 |---|---|---|---|
-| User authentication | React PWA → AuthModule | REST HTTPS | Returns JWT access + httpOnly refresh cookie |
-| All API calls | React PWA → NestJS modules | REST + `Bearer <JWT>` | Guards applied on every route |
-| Real-time updates | React PWA ↔ RealtimeGateway | WebSocket (Socket.IO) | JWT verified on handshake |
-| Push notifications | NotificationModule → Service Worker | Web Push (VAPID) | Via stored browser subscription |
-| ML complaint classification | ComplaintModule → MLClientModule → ML Service | Internal HTTP + shared secret | 2 s timeout; fallback to GENERAL/MEDIUM |
-| ML payment risk scoring | MaintenanceModule → MLClientModule → ML Service | Internal HTTP + shared secret | Periodic; result cached in `PaymentRiskScore` |
-| Booking race-safety lock | BookingModule → Redis | Redis `SET NX EX` | Released after DB write; DB unique index is second defence |
-| Notification dispatch | NotificationModule → Redis BullMQ | BullMQ `add()` | Workers dispatch to Push / SendGrid / Twilio independently |
-| Socket fan-out | RealtimeGateway → Redis pub-sub | `@socket.io/redis-adapter` | Enables multi-instance horizontal scale |
-| Payment order creation | MaintenanceModule → Razorpay API | HTTPS | Returns `order_id` to frontend |
-| Payment capture (webhook) | Razorpay → MaintenanceModule | HTTPS webhook (HMAC verified) | Invoice flipped to PAID; `Payment` row created |
-| DB queries | All backend modules → PrismaService | Prisma ORM (in-process) | `tenant_id` auto-injected by Prisma Client Extension |
-| ORM → Database | PrismaService → Supabase PostgreSQL | Postgres wire protocol | Connection pool managed by Prisma |
+| User authentication | React PWA → auth router | REST HTTPS | Returns a JWT access token + a rotating refresh token |
+| All API calls | React PWA → FastAPI routers | REST + `Bearer <JWT>` | Auth, role and tenant dependencies applied on every route |
+| Real-time updates | React PWA ↔ RealtimeGateway | WebSocket | JWT verified on connection; channels assigned server-side |
+| Push notifications | NotificationService → Service Worker | Web Push (VAPID) | Via stored browser subscription |
+| ML complaint classification | complaints router → MLClient → ML Service | Internal HTTP + shared secret | 2 s timeout; keyword fallback, flagged for manual triage |
+| ML payment risk scoring | maintenance router → MLClient → ML Service | Internal HTTP + shared secret | Periodic; result cached in `PaymentRiskScore` |
+| Booking race-safety lock | bookings router → Redis | Redis `SET NX EX` | Released after DB write; partial unique index is second defence |
+| Notification dispatch | NotificationService → Redis queue | Queued job | Workers dispatch to Push / SendGrid / Twilio independently |
+| Event fan-out | RealtimeGateway → Redis pub/sub | Redis channels | Enables multi-instance horizontal scale |
+| Payment order creation | maintenance router → Razorpay API | HTTPS | Returns `order_id` to frontend |
+| Payment settlement | Client → maintenance router | HTTPS (HMAC verified) | Signature checked before the invoice is flipped to PAID |
+| DB queries | All routers → SQLAlchemy Session | SQLAlchemy ORM (in-process) | Tenant-scoped queries filter on `get_tenant_id` |
+| ORM → Database | Session → Supabase PostgreSQL | Postgres wire protocol | Connection pool managed by the SQLAlchemy engine |
 | ML artifact persistence | ArtifactStore → Supabase Storage | HTTPS | Versioned by timestamp; reloaded on service restart |
 | Error reporting | Any component → Sentry | HTTPS | `requestId` correlates frontend + backend events |

@@ -42,7 +42,7 @@ Platform (SuperAdmin)
         └── ... (fully isolated from Society A)
 ```
 
-Every tenant-scoped database table carries a `tenant_id` column. A Prisma middleware layer auto-injects a `tenant_id` filter into every query, sourced from the authenticated JWT's claims — this is defense-in-depth, not just an app-layer convention (see [03 — Database Architecture](03-database-architecture.md#4-tenant-isolation)).
+Every tenant-scoped database table carries a `tenant_id` column. The scope for a request comes from a `get_tenant_id` dependency that reads the authenticated JWT's claims — never a request body or query parameter — and every tenant-scoped query filters on it. A dedicated test suite attempts each cross-society access path with a token from another society, so the guarantee is enforced by tests rather than by convention (see [03 — Database Architecture](03-database-architecture.md#4-tenant-isolation)).
 
 ## 3. Users & Roles
 
@@ -64,7 +64,7 @@ Visitors are **not** full user accounts — they hold a signed, time-boxed, sing
 
 ```
 ┌─────────────────────┐        ┌──────────────────────────────┐
-│  React PWA (Vercel)  │──────▶│  NestJS API (Render)          │
+│  React PWA (Vercel)  │──────▶│  FastAPI API (Render)         │
 │  role-based SPA      │◀──WS──│  modular monolith              │
 └─────────────────────┘        │  Auth / Tenant / User          │
                                 │  Maintenance / Complaint       │
@@ -73,7 +73,7 @@ Visitors are **not** full user accounts — they hold a signed, time-boxed, sing
                                 │  Audit                          │
                                 └───────┬────────────┬───────────┘
                                         │            │
-                     internal HTTP      │            │  BullMQ jobs
+                     internal HTTP      │            │  queued jobs
                      (shared secret)    ▼            ▼
                           ┌──────────────────┐  ┌──────────────┐
                           │ FastAPI ML svc   │  │ Redis         │
@@ -97,12 +97,12 @@ Twilio (SMS), Web Push/VAPID (browser push), Sentry (errors).
 | Layer | Choice | Why |
 |---|---|---|
 | Frontend | React + TypeScript, PWA | One codebase, installable, push-capable, no app-store overhead |
-| Backend | NestJS (Node/TS), modular monolith | DI + module structure fits a 5-person team following one consistent pattern; single owner for "all backend" is realistic |
-| ORM/DB | Prisma + PostgreSQL (Supabase) | Type-safe migrations; Supabase bundles Postgres + Storage on one free tier |
-| Cache/Queue | Redis (Upstash) + BullMQ | Booking slot locks, notification queue, WS pub-sub adapter |
+| Backend | FastAPI (Python 3.11), modular monolith | One router per epic keeps a consistent pattern for a 5-person team; same language as the ML service, so the stack is uniform rather than split |
+| ORM/DB | SQLAlchemy 2.0 + Alembic + PostgreSQL (Supabase) | Typed models and versioned migrations; Supabase bundles Postgres + Storage on one free tier |
+| Cache/Queue | Redis (Upstash) | Booking slot locks, notification job queue, WS pub-sub |
 | ML | FastAPI (Python), separate service | Python is the right tool for ML; kept as its own deploy since one teammate owns it end-to-end |
-| Payments | Razorpay, test/sandbox mode | India-context fits the domain; real webhook + signature verification flow, no real money |
-| Realtime | Socket.IO (in NestJS) + Redis adapter | SOS alerts, live complaint/booking updates |
+| Payments | Razorpay, test/sandbox mode | India-context fits the domain; real HMAC signature verification flow, no real money |
+| Realtime | FastAPI WebSockets + Redis pub/sub | SOS alerts, live complaint/booking updates |
 | Notifications | Web Push (VAPID) + SendGrid + Twilio | Push for everything; email/SMS reserved for SOS and payment-critical alerts only |
 | CI/CD | GitHub Actions | Lint/typecheck/test/build on every PR; auto-deploy on merge to `main` |
 | Hosting | Vercel (frontend) + Render (backend + ML) | Free-tier friendly, minimal DevOps overhead, matches team's chosen priority |
@@ -110,19 +110,19 @@ Twilio (SMS), Web Push/VAPID (browser push), Sentry (errors).
 
 ## 6. Epics → Architecture Mapping
 
-| Milestone 1 Epic | Backend module | Key tables | Notes |
+| Milestone 1 Epic | Backend router | Key tables | Notes |
 |---|---|---|---|
-| 1. Maintenance Management | `MaintenanceModule` | `MaintenanceInvoice`, `Payment`, `PaymentRiskScore` | Razorpay integration; ML payment-risk score feeds early reminders |
-| 2. Complaint Management | `ComplaintModule` | `Complaint`, `ComplaintStatusHistory` | ML auto-classifies category + urgency on creation |
-| 3. Facility Management | `BookingModule` | `Facility`, `FacilitySlot`, `Booking` | Redis lock prevents double-booking race |
-| 4. Visitor & Emergency | `VisitorModule` | `GuestPass`, `SOSIncident` | Signed single-use QR tokens; SOS fans out via WS + SMS + push |
-| 5. Society Administration | `AnnouncementModule`, `AuditModule` | `Announcement`, `AuditLog` | Resident/official dashboards are aggregation views, not new tables |
+| 1. Maintenance Management | `api/v1/maintenance.py` | `MaintenanceInvoice`, `Payment`, `PaymentRiskScore` | Razorpay integration; ML payment-risk score feeds early reminders |
+| 2. Complaint Management | `api/v1/complaints.py` | `Complaint`, `ComplaintStatusHistory` | ML auto-classifies category + urgency on creation |
+| 3. Facility Management | `api/v1/bookings.py` | `Facility`, `FacilitySlot`, `Booking` | Slot lock + partial unique index prevent the double-booking race |
+| 4. Visitor & Emergency | `api/v1/visitors.py` | `GuestPass`, `SOSIncident` | Random single-use QR tokens; SOS fans out via WS + SMS + push |
+| 5. Society Administration | `api/v1/announcements.py`, `api/v1/tenants.py` | `Announcement`, `AuditLog` | Resident/official dashboards are aggregation views, not new tables |
 | 6. Non-resident Owner Services | (cross-cutting) | — | Same modules as above, gated by role, read-mostly + guest-pass generation |
 
 ## 7. Cross-Cutting Concerns
 
 - **Security**: JWT access (15 min) + rotated httpOnly refresh tokens; `@Roles()` + `@TenantScoped()` guards on every route; rate limiting on auth/SOS endpoints. Full detail in [02 — Backend Architecture](02-backend-architecture.md#4-security).
-- **Notifications**: queued via BullMQ so a flaky SMS/email provider never blocks a request. Full detail in [02 — Backend Architecture](02-backend-architecture.md#10-notifications).
+- **Notifications**: external channels are queued so a flaky SMS/email provider never blocks a request; the in-app row is always written regardless of channel outcome. Full detail in [02 — Backend Architecture](02-backend-architecture.md#10-notifications).
 - **Auditability**: every state-changing action (payment, complaint status change, booking, guest pass, SOS) writes an `AuditLog` row — directly satisfies the Milestone 1 goal of "transparency and accountability."
 - **ML fallback**: both ML endpoints have a deterministic fallback (rule-based category guess / neutral risk score) if the ML service is unreachable or returns low confidence — the platform must keep functioning even if ML is down. Detail in [04 — ML Architecture](04-ml-architecture.md#7-fallback-behavior).
 
