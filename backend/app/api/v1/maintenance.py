@@ -1,0 +1,477 @@
+"""Maintenance invoicing and payment endpoints (Epic 1).
+
+User stories:
+- *"As a resident, I want to see my maintenance dues and pay them online so
+  that I don't have to visit the society office."*
+- *"As a society official, I want to raise monthly invoices and track
+  collection so that dues are transparent."*
+"""
+
+import uuid
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_roles
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError
+from app.core.security import verify_signature
+from app.db.session import get_db
+from app.models import (
+    Flat,
+    FlatOwnership,
+    InvoiceStatus,
+    MaintenanceInvoice,
+    NotificationType,
+    Payment,
+    PaymentRiskScore,
+    PaymentStatus,
+    Role,
+    utcnow,
+)
+from app.schemas import (
+    ErrorResponse,
+    InvoiceCreate,
+    InvoiceResponse,
+    MaintenanceSummaryResponse,
+    PaymentConfirmRequest,
+    PaymentOrderResponse,
+    PaymentResponse,
+    RiskScoreResponse,
+)
+from app.services import audit, notifications
+from app.services.ml_client import score_payment_risk
+
+router = APIRouter(prefix="/maintenance", tags=["Maintenance & Payments"])
+
+AUTH_ERRORS = {
+    401: {"model": ErrorResponse, "description": "Missing or invalid access token"},
+    403: {"model": ErrorResponse, "description": "Role is not permitted to perform this action"},
+}
+
+
+def _flat_ids_for(db: Session, user_id: str) -> list[str]:
+    """Flats the user owns or rents — the scope of their personal invoice view."""
+    return list(db.scalars(select(FlatOwnership.flat_id).where(FlatOwnership.user_id == user_id)))
+
+
+def _is_official(user: CurrentUser) -> bool:
+    return user.role == Role.SOCIETY_OFFICIAL.value
+
+
+def _refresh_overdue(db: Session, invoices: list[MaintenanceInvoice]) -> None:
+    """Flip PENDING invoices past their due date to OVERDUE.
+
+    Evaluated on read rather than by a nightly job, so the status is correct
+    the moment it is displayed even if a scheduled job missed a run.
+    """
+    now = utcnow().replace(tzinfo=None)
+    changed = False
+    for invoice in invoices:
+        if invoice.status == InvoiceStatus.PENDING.value and invoice.due_date < now:
+            invoice.status = InvoiceStatus.OVERDUE.value
+            changed = True
+    if changed:
+        db.commit()
+
+
+@router.post(
+    "/invoices",
+    response_model=InvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Raise a maintenance invoice for a flat",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Flat not found in this society"},
+        409: {"model": ErrorResponse, "description": "Invoice already exists for this period"},
+        422: {"model": ErrorResponse, "description": "Invalid period format or non-positive amount"},
+    },
+)
+def create_invoice(
+    payload: InvoiceCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> InvoiceResponse:
+    """Create one invoice for one flat for one month.
+
+    `(tenant, flat, period)` is unique, so re-running the monthly billing job
+    cannot double-charge a resident.
+    """
+    flat = db.get(Flat, payload.flat_id)
+    if flat is None or flat.tenant_id != tenant_id:
+        raise NotFoundError("Flat not found in this society", error="FLAT_NOT_FOUND")
+
+    duplicate = db.scalar(
+        select(MaintenanceInvoice).where(
+            MaintenanceInvoice.tenant_id == tenant_id,
+            MaintenanceInvoice.flat_id == payload.flat_id,
+            MaintenanceInvoice.period == payload.period,
+        )
+    )
+    if duplicate is not None:
+        raise ConflictError(
+            f"An invoice for {flat.label} already exists for {payload.period}",
+            error="INVOICE_ALREADY_EXISTS",
+        )
+
+    invoice = MaintenanceInvoice(
+        tenant_id=tenant_id,
+        flat_id=payload.flat_id,
+        period=payload.period,
+        amount=payload.amount,
+        due_date=payload.due_date.replace(tzinfo=None),
+    )
+    db.add(invoice)
+    db.flush()
+
+    for occupant_id in db.scalars(
+        select(FlatOwnership.user_id).where(FlatOwnership.flat_id == flat.id)
+    ):
+        notifications.notify(
+            db,
+            tenant_id=tenant_id,
+            user_id=occupant_id,
+            notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+            title=f"Maintenance invoice for {payload.period}",
+            body=f"₹{payload.amount:.2f} is due on {payload.due_date.date()}.",
+        )
+
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="INVOICE_CREATED",
+        entity_type="MaintenanceInvoice",
+        entity_id=invoice.id,
+        detail=f"{flat.label} {payload.period} ₹{payload.amount}",
+    )
+    db.commit()
+    db.refresh(invoice)
+    return InvoiceResponse.model_validate(invoice)
+
+
+@router.get(
+    "/invoices",
+    response_model=list[InvoiceResponse],
+    summary="List maintenance invoices",
+    responses=AUTH_ERRORS,
+)
+def list_invoices(
+    invoice_status: InvoiceStatus | None = Query(
+        None, alias="status", description="Filter by invoice status"
+    ),
+    flat_id: str | None = Query(None, description="Officials only: filter to one flat"),
+    period: str | None = Query(None, description="Filter by billing month, YYYY-MM"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> list[InvoiceResponse]:
+    """Return invoices visible to the caller.
+
+    Officials see the whole society; every other role sees only invoices for
+    flats they are linked to.
+    """
+    query = select(MaintenanceInvoice).where(MaintenanceInvoice.tenant_id == tenant_id)
+
+    if not _is_official(user):
+        owned = _flat_ids_for(db, user.id)
+        if not owned:
+            return []
+        query = query.where(MaintenanceInvoice.flat_id.in_(owned))
+    elif flat_id:
+        query = query.where(MaintenanceInvoice.flat_id == flat_id)
+
+    if period:
+        query = query.where(MaintenanceInvoice.period == period)
+
+    invoices = list(db.scalars(query.order_by(MaintenanceInvoice.period.desc())))
+    _refresh_overdue(db, invoices)
+
+    if invoice_status:
+        invoices = [i for i in invoices if i.status == invoice_status.value]
+    return [InvoiceResponse.model_validate(i) for i in invoices]
+
+
+def _load_invoice(db: Session, invoice_id: str, tenant_id: str) -> MaintenanceInvoice:
+    invoice = db.get(MaintenanceInvoice, invoice_id)
+    if invoice is None or invoice.tenant_id != tenant_id:
+        raise NotFoundError("Invoice not found", error="INVOICE_NOT_FOUND")
+    return invoice
+
+
+def _assert_can_view(db: Session, user: CurrentUser, invoice: MaintenanceInvoice) -> None:
+    if _is_official(user):
+        return
+    if invoice.flat_id not in _flat_ids_for(db, user.id):
+        raise ForbiddenError("This invoice belongs to another flat", error="NOT_YOUR_INVOICE")
+
+
+@router.get(
+    "/invoices/{invoice_id}",
+    response_model=InvoiceResponse,
+    summary="Get a single invoice",
+    responses={**AUTH_ERRORS, 404: {"model": ErrorResponse, "description": "Invoice not found"}},
+)
+def get_invoice(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> InvoiceResponse:
+    """Fetch one invoice, provided the caller is entitled to see it."""
+    invoice = _load_invoice(db, invoice_id, tenant_id)
+    _assert_can_view(db, user, invoice)
+    _refresh_overdue(db, [invoice])
+    return InvoiceResponse.model_validate(invoice)
+
+
+@router.post(
+    "/invoices/{invoice_id}/pay",
+    response_model=PaymentOrderResponse,
+    summary="Create a payment order for an invoice",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Invoice not found"},
+        409: {"model": ErrorResponse, "description": "Invoice is already paid"},
+    },
+)
+def create_payment_order(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> PaymentOrderResponse:
+    """Open a gateway order so the client can launch checkout.
+
+    The order is recorded as `CREATED`; the invoice is only marked paid once a
+    signed confirmation arrives, never on the strength of this call alone.
+    """
+    invoice = _load_invoice(db, invoice_id, tenant_id)
+    _assert_can_view(db, user, invoice)
+
+    if invoice.status == InvoiceStatus.PAID.value:
+        raise ConflictError("This invoice has already been paid", error="INVOICE_ALREADY_PAID")
+
+    order_id = f"order_{uuid.uuid4().hex[:16]}"
+    db.add(
+        Payment(
+            invoice_id=invoice.id,
+            razorpay_order_id=order_id,
+            amount=invoice.amount,
+            status=PaymentStatus.CREATED.value,
+        )
+    )
+    db.commit()
+
+    return PaymentOrderResponse(
+        order_id=order_id,
+        invoice_id=invoice.id,
+        amount=invoice.amount,
+        key_id=settings.RAZORPAY_KEY_ID,
+    )
+
+
+@router.post(
+    "/invoices/{invoice_id}/payments/confirm",
+    response_model=PaymentResponse,
+    summary="Confirm a payment against an invoice",
+    responses={
+        **AUTH_ERRORS,
+        400: {"model": ErrorResponse, "description": "Signature verification failed"},
+        404: {"model": ErrorResponse, "description": "Invoice or payment order not found"},
+        409: {"model": ErrorResponse, "description": "Invoice is already paid"},
+    },
+)
+def confirm_payment(
+    invoice_id: str,
+    payload: PaymentConfirmRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> PaymentResponse:
+    """Verify the gateway signature, then settle the invoice.
+
+    The HMAC over `<order_id>|<payment_id>` is checked **before** anything is
+    trusted — without it a client could mark any invoice paid for free.
+    """
+    invoice = _load_invoice(db, invoice_id, tenant_id)
+    _assert_can_view(db, user, invoice)
+
+    if invoice.status == InvoiceStatus.PAID.value:
+        raise ConflictError("This invoice has already been paid", error="INVOICE_ALREADY_PAID")
+
+    payment = db.scalar(
+        select(Payment).where(
+            Payment.invoice_id == invoice.id,
+            Payment.razorpay_order_id == payload.razorpay_order_id,
+        )
+    )
+    if payment is None:
+        raise NotFoundError("No payment order matches this invoice", error="ORDER_NOT_FOUND")
+
+    expected_body = f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}"
+    if not verify_signature(expected_body, payload.signature, settings.RAZORPAY_KEY_SECRET):
+        payment.status = PaymentStatus.FAILED.value
+        db.commit()
+        raise ForbiddenError(
+            "Payment signature verification failed; the invoice was not settled",
+            error="INVALID_PAYMENT_SIGNATURE",
+        )
+
+    payment.razorpay_payment_id = payload.razorpay_payment_id
+    payment.status = PaymentStatus.CAPTURED.value
+    payment.method = payload.method
+
+    invoice.status = InvoiceStatus.PAID.value
+    invoice.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    notifications.notify(
+        db,
+        tenant_id=tenant_id,
+        user_id=user.id,
+        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        title=f"Payment received for {invoice.period}",
+        body=f"₹{invoice.amount:.2f} paid successfully.",
+    )
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="PAYMENT_CAPTURED",
+        entity_type="MaintenanceInvoice",
+        entity_id=invoice.id,
+        detail=f"{payload.razorpay_payment_id} ₹{invoice.amount}",
+    )
+    db.commit()
+    db.refresh(payment)
+    return PaymentResponse.model_validate(payment)
+
+
+@router.get(
+    "/payments",
+    response_model=list[PaymentResponse],
+    summary="List payment records",
+    responses=AUTH_ERRORS,
+)
+def list_payments(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> list[PaymentResponse]:
+    """Payment history for the caller's flats, or the whole society for officials."""
+    query = (
+        select(Payment)
+        .join(MaintenanceInvoice, Payment.invoice_id == MaintenanceInvoice.id)
+        .where(MaintenanceInvoice.tenant_id == tenant_id)
+    )
+    if not _is_official(user):
+        owned = _flat_ids_for(db, user.id)
+        if not owned:
+            return []
+        query = query.where(MaintenanceInvoice.flat_id.in_(owned))
+
+    payments = db.scalars(query.order_by(Payment.created_at.desc())).all()
+    return [PaymentResponse.model_validate(p) for p in payments]
+
+
+@router.get(
+    "/summary",
+    response_model=MaintenanceSummaryResponse,
+    summary="Collection summary for the society",
+    responses=AUTH_ERRORS,
+)
+def summary(
+    db: Session = Depends(get_db),
+    _: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> MaintenanceSummaryResponse:
+    """Aggregate counts and totals powering the official's dashboard."""
+    invoices = list(
+        db.scalars(select(MaintenanceInvoice).where(MaintenanceInvoice.tenant_id == tenant_id))
+    )
+    _refresh_overdue(db, invoices)
+
+    paid = [i for i in invoices if i.status == InvoiceStatus.PAID.value]
+    pending = [i for i in invoices if i.status == InvoiceStatus.PENDING.value]
+    overdue = [i for i in invoices if i.status == InvoiceStatus.OVERDUE.value]
+
+    return MaintenanceSummaryResponse(
+        total_invoices=len(invoices),
+        paid_count=len(paid),
+        pending_count=len(pending),
+        overdue_count=len(overdue),
+        total_collected=round(sum(i.amount for i in paid), 2),
+        total_outstanding=round(sum(i.amount for i in pending + overdue), 2),
+    )
+
+
+@router.get(
+    "/flats/{flat_id}/risk-score",
+    response_model=RiskScoreResponse,
+    summary="Payment-risk score for a flat",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Flat not found in this society"},
+    },
+)
+def risk_score(
+    flat_id: str,
+    period: str = Query(..., pattern=r"^\d{4}-\d{2}$", description="Billing month, YYYY-MM"),
+    db: Session = Depends(get_db),
+    _: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> RiskScoreResponse:
+    """Predict how likely a flat is to pay late, so reminders can go out early.
+
+    Backed by the ML service in production; the deterministic fallback keeps
+    this endpoint answering even when the model is unavailable.
+    """
+    flat = db.get(Flat, flat_id)
+    if flat is None or flat.tenant_id != tenant_id:
+        raise NotFoundError("Flat not found in this society", error="FLAT_NOT_FOUND")
+
+    history = list(
+        db.scalars(
+            select(MaintenanceInvoice).where(
+                MaintenanceInvoice.tenant_id == tenant_id,
+                MaintenanceInvoice.flat_id == flat_id,
+            )
+        )
+    )
+    settled = [i for i in history if i.status == InvoiceStatus.PAID.value]
+    on_time = [i for i in settled if i.paid_at and i.paid_at <= i.due_date]
+    overdue_count = len([i for i in history if i.status == InvoiceStatus.OVERDUE.value])
+
+    score = score_payment_risk(
+        on_time_ratio=(len(on_time) / len(settled)) if settled else 0.0,
+        overdue_count=overdue_count,
+        months_tracked=len(history),
+    )
+
+    record = db.scalar(
+        select(PaymentRiskScore).where(
+            PaymentRiskScore.tenant_id == tenant_id,
+            PaymentRiskScore.flat_id == flat_id,
+            PaymentRiskScore.period == period,
+        )
+    )
+    if record is None:
+        record = PaymentRiskScore(
+            tenant_id=tenant_id, flat_id=flat_id, period=period, risk_score=score
+        )
+        db.add(record)
+    else:
+        record.risk_score = score
+        record.computed_at = utcnow().replace(tzinfo=None)
+    db.commit()
+    db.refresh(record)
+
+    return RiskScoreResponse(
+        flat_id=flat_id,
+        period=period,
+        risk_score=record.risk_score,
+        computed_at=record.computed_at,
+    )
