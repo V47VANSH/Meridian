@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Diagram — Interactive Viewer</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; font-family:'Segoe UI', system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  #stage {
+    position:absolute; inset:0; cursor:grab;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.18) 1px, transparent 0) 0 0 / 26px 26px,
+      var(--bg);
+    overflow:hidden;
+  }
+  #stage:active { cursor:grabbing; }
+  #canvas { position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform; }
+  #canvas img { display:block; user-select:none; -webkit-user-drag:none; }
+
+  #toolbar {
+    position:absolute; top:16px; left:16px; z-index:10;
+    display:flex; align-items:center; gap:6px;
+    background:rgba(30,41,59,.9); backdrop-filter:blur(8px);
+    border:1px solid #334155; border-radius:12px; padding:8px; box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  #toolbar button {
+    width:38px; height:38px; border:none; border-radius:8px; cursor:pointer;
+    background:#334155; color:var(--text); font-size:18px; font-weight:700; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition:background .15s;
+  }
+  #toolbar button:hover { background:#475569; }
+  #toolbar button.wide { width:auto; padding:0 14px; font-size:13px; font-weight:600; }
+  #zoomLabel {
+    min-width:58px; text-align:center; font-size:13px; font-weight:600; color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  #hint {
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:10;
+    background:rgba(30,41,59,.85); border:1px solid #334155; border-radius:10px;
+    padding:8px 16px; font-size:12.5px; color:var(--muted);
+  }
+  #hint b { color:var(--text); font-weight:600; }
+  kbd { background:#334155; border-radius:4px; padding:1px 6px; font-size:11px; color:var(--text); }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="canvas">
+      <img id="svg" src="architecture-structure-diagram.svg" alt="Architecture structure diagram">
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <button id="zoomOut" title="Zoom out (−)">−</button>
+    <span id="zoomLabel">100%</span>
+    <button id="zoomIn" title="Zoom in (+)">+</button>
+    <button id="reset" class="wide" title="Fit to screen (0)">Fit</button>
+  </div>
+
+  <div id="hint">
+    <b>Scroll</b> to zoom toward the cursor · <b>Drag</b> to pan · <b>Double-click</b> to zoom in
+  </div>
+
+<script>
+(function () {
+  const stage  = document.getElementById('stage');
+  const canvas = document.getElementById('canvas');
+  const img    = document.getElementById('svg');
+  const label  = document.getElementById('zoomLabel');
+
+  let scale = 1, tx = 0, ty = 0;
+  const MIN = 0.1, MAX = 12;
+  let natW = 1720, natH = 1260; // matches the SVG viewBox
+
+  function apply() {
+    canvas.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    label.textContent = Math.round(scale * 100) + '%';
+  }
+
+  // Fit the whole diagram centered in the viewport
+  function fit() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    const pad = 40;
+    scale = Math.min((w - pad) / natW, (h - pad) / natH);
+    tx = (w - natW * scale) / 2;
+    ty = (h - natH * scale) / 2;
+    apply();
+  }
+
+  // Core: zoom keeping the point under (px,py) — in stage coords — fixed
+  function zoomAt(px, py, factor) {
+    const next = Math.min(MAX, Math.max(MIN, scale * factor));
+    if (next === scale) return;
+    // world point under cursor stays put:
+    tx = px - (px - tx) * (next / scale);
+    ty = py - (py - ty) * (next / scale);
+    scale = next;
+    apply();
+  }
+
+  // Wheel = zoom toward cursor (trackpad pinch also arrives as wheel+ctrlKey)
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    const rect = stage.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const intensity = e.ctrlKey ? 0.01 : 0.0018;      // pinch vs wheel
+    const factor = Math.exp(-e.deltaY * intensity);
+    zoomAt(px, py, factor);
+  }, { passive: false });
+
+  // Drag to pan
+  let dragging = false, lastX = 0, lastY = 0;
+  stage.addEventListener('pointerdown', function (e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    tx += e.clientX - lastX;
+    ty += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    apply();
+  });
+  stage.addEventListener('pointerup',    function (e) { dragging = false; });
+  stage.addEventListener('pointercancel',function ()  { dragging = false; });
+
+  // Double-click zoom in toward the point
+  stage.addEventListener('dblclick', function (e) {
+    const rect = stage.getBoundingClientRect();
+    zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1.6);
+  });
+
+  // Buttons (zoom around viewport center)
+  function centerZoom(f){ zoomAt(stage.clientWidth/2, stage.clientHeight/2, f); }
+  document.getElementById('zoomIn').onclick  = () => centerZoom(1.25);
+  document.getElementById('zoomOut').onclick = () => centerZoom(0.8);
+  document.getElementById('reset').onclick   = fit;
+
+  // Keyboard
+  window.addEventListener('keydown', function (e) {
+    if (e.key === '+' || e.key === '=') centerZoom(1.25);
+    else if (e.key === '-' || e.key === '_') centerZoom(0.8);
+    else if (e.key === '0') fit();
+  });
+
+  window.addEventListener('resize', fit);
+
+  // Read real intrinsic size once the SVG loads, then fit
+  function init() {
+    if (img.naturalWidth) { natW = img.naturalWidth; natH = img.naturalHeight; }
+    fit();
+  }
+  if (img.complete) init(); else img.addEventListener('load', init);
+})();
+</script>
+</body>
+</html>

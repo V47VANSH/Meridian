@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 1260" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <!-- Drop shadow for containers -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+    <!-- Arrowheads -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0d9488"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d97706"/>
+    </marker>
+    <style>
+      .ctitle   { font-size:19px; font-weight:700; letter-spacing:.3px; }
+      .csub     { font-size:12px; font-weight:400; }
+      .node     { font-size:13.5px; font-weight:600; }
+      .nodesub  { font-size:11px; font-weight:400; }
+      .elabel   { font-size:11px; font-weight:600; fill:#334155; }
+      .elabelbg { fill:#ffffff; opacity:0.92; }
+      .edge     { stroke:#475569; stroke-width:1.6; fill:none; }
+      .edgeRed  { stroke:#dc2626; stroke-width:1.8; fill:none; }
+      .edgeTeal { stroke:#0d9488; stroke-width:1.8; fill:none; }
+      .edgeAmber{ stroke:#d97706; stroke-width:1.8; fill:none; }
+      .edgeDash { stroke:#94a3b8; stroke-width:1.4; fill:none; stroke-dasharray:5 4; }
+    </style>
+  </defs>
+
+  <!-- ===================== BACKGROUND ===================== -->
+  <rect x="0" y="0" width="1720" height="1260" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="60" y="52" font-size="30" font-weight="800" fill="#0f172a">Apartment Complex Management System</text>
+  <text x="60" y="80" font-size="16" font-weight="500" fill="#64748b">System Structure &amp; Deployment Architecture · Multi-Tenant SaaS</text>
+
+  <!-- ===================================================================== -->
+  <!-- CLIENT                                                                 -->
+  <!-- ===================================================================== -->
+  <g>
+    <rect x="560" y="110" width="600" height="150" rx="14" fill="#eff6ff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+    <text x="584" y="140" class="ctitle" fill="#1d4ed8">Client · Browser / PWA</text>
+
+    <rect x="590" y="158" width="250" height="78" rx="9" fill="#dbeafe" stroke="#60a5fa" stroke-width="1.5"/>
+    <text x="715" y="190" class="node" fill="#1e3a8a" text-anchor="middle">React 18 PWA</text>
+    <text x="715" y="210" class="nodesub" fill="#1e40af" text-anchor="middle">Vite + TypeScript</text>
+
+    <rect x="880" y="158" width="250" height="78" rx="9" fill="#dbeafe" stroke="#60a5fa" stroke-width="1.5"/>
+    <text x="1005" y="190" class="node" fill="#1e3a8a" text-anchor="middle">Service Worker</text>
+    <text x="1005" y="210" class="nodesub" fill="#1e40af" text-anchor="middle">Push · Offline cache</text>
+
+    <line x1="840" y1="197" x2="880" y2="197" stroke="#60a5fa" stroke-width="1.8"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- BACKEND — FastAPI Modular Monolith                                      -->
+  <!-- ===================================================================== -->
+  <g>
+    <rect x="60" y="330" width="1080" height="470" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2" filter="url(#shadow)"/>
+    <text x="84" y="360" class="ctitle" fill="#6d28d9">FastAPI API — Modular Monolith</text>
+    <text x="84" y="380" class="csub" fill="#8b5cf6">Deployed on Render</text>
+
+    <!-- Module grid (3 rows x 4 cols) -->
+    <!-- Row 1 -->
+    <g class="mod">
+      <rect x="90"  y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="207" y="431" class="node" fill="#5b21b6" text-anchor="middle">auth router</text>
+      <rect x="345" y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="462" y="431" class="node" fill="#5b21b6" text-anchor="middle">tenants router</text>
+      <rect x="600" y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="717" y="431" class="node" fill="#5b21b6" text-anchor="middle">users + flats router</text>
+      <rect x="855" y="398" width="255" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="982" y="431" class="node" fill="#5b21b6" text-anchor="middle">maintenance router</text>
+    </g>
+    <!-- Row 2 -->
+    <g class="mod">
+      <rect x="90"  y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="207" y="503" class="node" fill="#5b21b6" text-anchor="middle">complaints router</text>
+      <rect x="345" y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="462" y="503" class="node" fill="#5b21b6" text-anchor="middle">bookings router</text>
+      <rect x="600" y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="717" y="503" class="node" fill="#5b21b6" text-anchor="middle">visitors router</text>
+      <rect x="855" y="470" width="255" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="982" y="503" class="node" fill="#5b21b6" text-anchor="middle">announcements router</text>
+    </g>
+    <!-- Row 3 -->
+    <g class="mod">
+      <rect x="90"  y="542" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="207" y="575" class="node" fill="#5b21b6" text-anchor="middle">NotificationService</text>
+      <rect x="345" y="542" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
+      <text x="462" y="575" class="node" fill="#5b21b6" text-anchor="middle">AuditService</text>
+      <rect x="600" y="542" width="235" height="56" rx="8" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.4"/>
+      <text x="717" y="568" class="node" fill="#3730a3" text-anchor="middle">RealtimeGateway</text>
+      <text x="717" y="586" class="nodesub" fill="#4338ca" text-anchor="middle">WebSockets</text>
+      <rect x="855" y="542" width="255" height="56" rx="8" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.4"/>
+      <text x="982" y="568" class="node" fill="#3730a3" text-anchor="middle">MLClient</text>
+      <text x="982" y="586" class="nodesub" fill="#4338ca" text-anchor="middle">HTTP + shared secret</text>
+    </g>
+
+    <!-- SQLAlchemy Session bar -->
+    <rect x="90" y="620" width="1020" height="66" rx="9" fill="#c4b5fd" stroke="#7c3aed" stroke-width="1.8"/>
+    <text x="600" y="649" font-size="15" font-weight="700" fill="#4c1d95" text-anchor="middle">SQLAlchemy Session — Tenant-scoped</text>
+    <text x="600" y="669" class="nodesub" fill="#5b21b6" text-anchor="middle">Every query filtered by tenant_id · single data-access layer</text>
+
+    <text x="600" y="720" font-size="12" fill="#8b5cf6" text-anchor="middle" font-style="italic">All feature routers depend on the SQLAlchemy Session for persistence</text>
+    <!-- subtle connectors from router rows down to the ORM -->
+    <path d="M207,598 L207,620" class="edgeDash"/>
+    <path d="M462,598 L462,620" class="edgeDash"/>
+    <path d="M717,598 L717,620" class="edgeDash"/>
+    <path d="M982,598 L982,620" class="edgeDash"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- ML SERVICE — FastAPI                                                    -->
+  <!-- ===================================================================== -->
+  <g>
+    <rect x="1200" y="330" width="460" height="320" rx="14" fill="#f0fdfa" stroke="#0d9488" stroke-width="2" filter="url(#shadow)"/>
+    <text x="1224" y="360" class="ctitle" fill="#0f766e">ML Service — FastAPI</text>
+    <text x="1224" y="380" class="csub" fill="#14b8a6">Deployed on Render</text>
+
+    <rect x="1230" y="398" width="400" height="66" rx="9" fill="#ccfbf1" stroke="#2dd4bf" stroke-width="1.5"/>
+    <text x="1430" y="427" class="node" fill="#115e59" text-anchor="middle">ComplaintClassifier</text>
+    <text x="1430" y="446" class="nodesub" fill="#0f766e" text-anchor="middle">POST /complaints/classify</text>
+
+    <rect x="1230" y="478" width="400" height="66" rx="9" fill="#ccfbf1" stroke="#2dd4bf" stroke-width="1.5"/>
+    <text x="1430" y="507" class="node" fill="#115e59" text-anchor="middle">PaymentRiskScorer</text>
+    <text x="1430" y="526" class="nodesub" fill="#0f766e" text-anchor="middle">POST /payment-risk/score</text>
+
+    <rect x="1230" y="558" width="400" height="66" rx="9" fill="#d1fae5" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1430" y="587" class="node" fill="#065f46" text-anchor="middle">ArtifactStore</text>
+    <text x="1430" y="606" class="nodesub" fill="#047857" text-anchor="middle">Versioned model.pkl</text>
+
+    <line x1="1430" y1="464" x2="1430" y2="478" stroke="#2dd4bf" stroke-width="1.6"/>
+    <line x1="1430" y1="544" x2="1430" y2="558" stroke="#34d399" stroke-width="1.6"/>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- INFRASTRUCTURE                                                         -->
+  <!-- ===================================================================== -->
+  <g>
+    <rect x="60" y="880" width="880" height="320" rx="14" fill="#fffbeb" stroke="#d97706" stroke-width="2" filter="url(#shadow)"/>
+    <text x="84" y="910" class="ctitle" fill="#b45309">Infrastructure</text>
+
+    <rect x="90" y="930" width="255" height="240" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="217" y="965" class="node" fill="#92400e" text-anchor="middle">Redis</text>
+    <text x="217" y="985" class="nodesub" fill="#b45309" text-anchor="middle">Upstash</text>
+    <line x1="120" y1="1000" x2="315" y2="1000" stroke="#fbbf24" stroke-width="1.2"/>
+    <text x="217" y="1024" class="nodesub" fill="#78350f" text-anchor="middle">Cache</text>
+    <text x="217" y="1046" class="nodesub" fill="#78350f" text-anchor="middle">Distributed locks</text>
+    <text x="217" y="1068" class="nodesub" fill="#78350f" text-anchor="middle">Redis job queue</text>
+    <text x="217" y="1090" class="nodesub" fill="#78350f" text-anchor="middle">WS pub/sub</text>
+
+    <rect x="360" y="930" width="270" height="240" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="495" y="965" class="node" fill="#92400e" text-anchor="middle">PostgreSQL</text>
+    <text x="495" y="985" class="nodesub" fill="#b45309" text-anchor="middle">Supabase</text>
+    <line x1="390" y1="1000" x2="600" y2="1000" stroke="#fbbf24" stroke-width="1.2"/>
+    <text x="495" y="1030" class="nodesub" fill="#78350f" text-anchor="middle">18 relational tables</text>
+    <text x="495" y="1054" class="nodesub" fill="#78350f" text-anchor="middle">Tenant isolation</text>
+    <text x="495" y="1078" class="nodesub" fill="#78350f" text-anchor="middle">Composite tenant indexes</text>
+
+    <rect x="645" y="930" width="270" height="240" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="780" y="965" class="node" fill="#92400e" text-anchor="middle">Supabase Storage</text>
+    <text x="780" y="985" class="nodesub" fill="#b45309" text-anchor="middle">Object store</text>
+    <line x1="675" y1="1000" x2="885" y2="1000" stroke="#fbbf24" stroke-width="1.2"/>
+    <text x="780" y="1030" class="nodesub" fill="#78350f" text-anchor="middle">QR images</text>
+    <text x="780" y="1054" class="nodesub" fill="#78350f" text-anchor="middle">Complaint photos</text>
+    <text x="780" y="1078" class="nodesub" fill="#78350f" text-anchor="middle">ML artifacts</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- EXTERNAL SERVICES                                                      -->
+  <!-- ===================================================================== -->
+  <g>
+    <rect x="990" y="880" width="670" height="320" rx="14" fill="#f8fafc" stroke="#64748b" stroke-width="2" filter="url(#shadow)"/>
+    <text x="1014" y="910" class="ctitle" fill="#475569">External Services</text>
+
+    <rect x="1020" y="930" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="1170" y="972" class="node" fill="#334155" text-anchor="middle">Razorpay</text>
+    <text x="1170" y="994" class="nodesub" fill="#475569" text-anchor="middle">Payments · Orders API</text>
+    <text x="1170" y="1016" class="nodesub" fill="#475569" text-anchor="middle">HMAC-verified confirmation</text>
+
+    <rect x="1340" y="930" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="1490" y="972" class="node" fill="#334155" text-anchor="middle">SendGrid</text>
+    <text x="1490" y="1000" class="nodesub" fill="#475569" text-anchor="middle">Transactional email</text>
+
+    <rect x="1020" y="1058" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="1170" y="1100" class="node" fill="#334155" text-anchor="middle">Twilio</text>
+    <text x="1170" y="1128" class="nodesub" fill="#475569" text-anchor="middle">SMS · SOS &amp; critical alerts</text>
+
+    <rect x="1340" y="1058" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="1490" y="1100" class="node" fill="#334155" text-anchor="middle">Sentry</text>
+    <text x="1490" y="1128" class="nodesub" fill="#475569" text-anchor="middle">Error tracking</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- EDGES                                                                  -->
+  <!-- ===================================================================== -->
+
+  <!-- Client REST -> Backend (feature modules) -->
+  <path d="M760,260 L600,330" class="edgeRed" marker-end="url(#arrowRed)"/>
+  <rect class="elabelbg" x="612" y="286" width="118" height="18" rx="3"/>
+  <text class="elabel" x="671" y="299" text-anchor="middle" fill="#dc2626">REST + JWT</text>
+
+  <!-- Client WebSocket <-> RealtimeGateway -->
+  <path d="M960,260 C960,300 820,470 780,542" class="edge" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <rect class="elabelbg" x="852" y="360" width="150" height="18" rx="3"/>
+  <text class="elabel" x="927" y="373" text-anchor="middle">WebSocket</text>
+
+  <!-- ORM -> PostgreSQL -->
+  <path d="M540,686 C540,760 520,820 500,880" class="edge" marker-end="url(#arrow)"/>
+  <rect class="elabelbg" x="470" y="792" width="130" height="18" rx="3"/>
+  <text class="elabel" x="535" y="805" text-anchor="middle">SQL via SQLAlchemy</text>
+
+  <!-- Backend (NOTIF/BOOK/RT) -> Redis -->
+  <path d="M280,686 C260,760 240,820 225,880" class="edgeAmber" marker-end="url(#arrowAmber)"/>
+  <rect class="elabelbg" x="120" y="792" width="180" height="18" rx="3"/>
+  <text class="elabel" x="210" y="805" text-anchor="middle" fill="#b45309">Locks · Queue · Pub-Sub</text>
+
+  <!-- MLClient -> ML Service -->
+  <path d="M1110,570 L1200,530" class="edgeTeal" marker-end="url(#arrowTeal)"/>
+  <rect class="elabelbg" x="1110" y="533" width="98" height="18" rx="3"/>
+  <text class="elabel" x="1159" y="546" text-anchor="middle" fill="#0d9488">HTTP + secret</text>
+
+  <!-- ArtifactStore -> Supabase Storage -->
+  <path d="M1300,624 C1180,720 950,850 830,928" class="edgeTeal" marker-end="url(#arrowTeal)"/>
+  <rect class="elabelbg" x="1000" y="800" width="150" height="18" rx="3"/>
+  <text class="elabel" x="1075" y="813" text-anchor="middle" fill="#0d9488">Versioned model.pkl</text>
+
+  <!-- MaintenanceModule <-> Razorpay -->
+  <path d="M1010,426 C1120,560 1160,760 1170,928" class="edge" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <rect class="elabelbg" x="1120" y="700" width="150" height="18" rx="3"/>
+  <text class="elabel" x="1195" y="713" text-anchor="middle">Orders API + signed confirm</text>
+
+  <!-- NotificationModule -> SendGrid / Twilio / ServiceWorker / Sentry (fan bundle label) -->
+  <path d="M325,560 C700,760 1150,850 1400,930" class="edge" marker-end="url(#arrow)"/>
+  <rect class="elabelbg" x="900" y="783" width="240" height="18" rx="3"/>
+  <text class="elabel" x="1020" y="796" text-anchor="middle">Notifications → Email · SMS · Push</text>
+
+  <!-- Auth -> Sentry (error events) -->
+  <path d="M1490,1058 C1560,900 1400,470 1130,455" class="edgeDash" marker-end="url(#arrow)"/>
+  <rect class="elabelbg" x="1500" y="720" width="110" height="18" rx="3"/>
+  <text class="elabel" x="1555" y="733" text-anchor="middle" fill="#64748b">error events</text>
+
+  <!-- ===================== LEGEND ===================== -->
+  <g>
+    <rect x="60" y="1215" width="1160" height="34" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+    <line x1="80"  y1="1232" x2="112" y2="1232" class="edgeRed"/>
+    <text x="120" y="1236" font-size="11.5" fill="#334155">REST + JWT</text>
+    <line x1="230" y1="1232" x2="262" y2="1232" class="edge"/>
+    <text x="270" y="1236" font-size="11.5" fill="#334155">Internal / data flow</text>
+    <line x1="430" y1="1232" x2="462" y2="1232" class="edgeTeal"/>
+    <text x="470" y="1236" font-size="11.5" fill="#334155">ML inference</text>
+    <line x1="580" y1="1232" x2="612" y2="1232" class="edgeAmber"/>
+    <text x="620" y="1236" font-size="11.5" fill="#334155">Redis (locks/queue/pubsub)</text>
+    <line x1="820" y1="1232" x2="852" y2="1232" class="edgeDash"/>
+    <text x="860" y="1236" font-size="11.5" fill="#334155">Async / observability</text>
+    <text x="1060" y="1236" font-size="11.5" font-style="italic" fill="#94a3b8">Vector SVG — zoom without pixelation</text>
+  </g>
+</svg>
