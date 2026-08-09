@@ -1,30 +1,62 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuthStore } from "../../../store/authStore";
-import { ROLE_HOME, ROLE_LABELS, type Role } from "../../../lib/constants";
+import { useMutation } from "@tanstack/react-query";
+import { useAuthStore, setAuthTokens, clearAuth } from "../../../store/authStore";
+import { ROLE_HOME } from "../../../lib/constants";
+import { login as loginRequest, getCurrentUser, toAuthUser } from "../../../api/auth";
+import { ApiError } from "../../../api/client";
 import logo from "../../../assets/logo.svg";
 
-const ROLES: Role[] = [
-  "RESIDENT_OWNER",
-  "SOCIETY_OFFICIAL",
-  "NON_RESIDENT_OWNER",
-  "SECURITY_GUARD",
-  "MAINTENANCE_STAFF",
+/** Accounts created by the backend seeder, shown so the app can be demoed. */
+const DEMO_ACCOUNTS = [
+  { email: "resident@greenvalley.example", label: "Resident / Flat Owner" },
+  { email: "official@greenvalley.example", label: "Society Official" },
+  { email: "owner@greenvalley.example", label: "Non-Resident Owner" },
+  { email: "guard@greenvalley.example", label: "Security Guard" },
+  { email: "staff@greenvalley.example", label: "Maintenance Staff" },
 ];
+const DEMO_PASSWORD = "Password123";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("RESIDENT_OWNER");
-  const login = useAuthStore((s) => s.login);
+  const [tenantId, setTenantId] = useState("");
+  const [showDemoAccounts, setShowDemoAccounts] = useState(false);
+  const setSession = useAuthStore((s) => s.setSession);
   const navigate = useNavigate();
+
+  const signIn = useMutation({
+    mutationFn: async () => {
+      const tokens = await loginRequest({
+        email,
+        password,
+        // Only sent once the backend has told us this email spans societies.
+        tenant_id: tenantId.trim() || null,
+      });
+
+      // The token has to be readable by the client before /me can be called.
+      setAuthTokens(tokens.access_token, tokens.refresh_token);
+      try {
+        const user = toAuthUser(await getCurrentUser());
+        setSession(user, tokens.access_token, tokens.refresh_token);
+        return user;
+      } catch (error) {
+        // Never leave a half-open session behind: the tokens are valid but we
+        // have no user to render.
+        clearAuth();
+        throw error;
+      }
+    },
+    onSuccess: (user) => navigate(ROLE_HOME[user.role], { replace: true }),
+  });
+
+  // The backend asks for a society only when one email exists in several.
+  const needsTenant = signIn.error instanceof ApiError && signIn.error.code === "TENANT_REQUIRED";
+  const errorMessage = signIn.error instanceof Error ? signIn.error.message : null;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // Mock auth — no backend call. Swap for a real POST /auth/login once
-    // the API contract is published, then decode role/tenant from the JWT.
-    login({ name: email ? email.split("@")[0] : "Demo User", role, flatNo: "B-304" });
-    navigate(ROLE_HOME[role]);
+    signIn.mutate();
   }
 
   return (
@@ -57,10 +89,12 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="label-field">Email</label>
+              <label className="label-field" htmlFor="email">Email</label>
               <input
+                id="email"
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@meridian.app"
@@ -68,37 +102,75 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="label-field">Password</label>
+              <label className="label-field" htmlFor="password">Password</label>
               <input
+                id="password"
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="input-field"
               />
             </div>
-            <div>
-              <label className="label-field">Sign in as (demo role switch)</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="input-field"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1.5 text-xs text-ink-500">
-                No backend is wired up yet — this stands in for JWT-decoded role until then.
+
+            {needsTenant && (
+              <div>
+                <label className="label-field" htmlFor="tenantId">Society ID</label>
+                <input
+                  id="tenantId"
+                  required
+                  value={tenantId}
+                  onChange={(e) => setTenantId(e.target.value)}
+                  placeholder="Society identifier"
+                  className="input-field"
+                />
+                <p className="mt-1.5 text-xs text-ink-500">
+                  This email is registered in more than one society.
+                </p>
+              </div>
+            )}
+
+            {errorMessage && (
+              <p role="alert" className="text-sm text-red-400">
+                {errorMessage}
               </p>
-            </div>
-            <button type="submit" className="btn-primary w-full">
-              Sign In
+            )}
+
+            <button type="submit" className="btn-primary w-full" disabled={signIn.isPending}>
+              {signIn.isPending ? "Signing in…" : "Sign In"}
             </button>
           </form>
+
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setShowDemoAccounts((v) => !v)}
+              className="text-xs font-mono text-ink-500 hover:text-signal"
+            >
+              {showDemoAccounts ? "Hide demo accounts" : "Show demo accounts"}
+            </button>
+            {showDemoAccounts && (
+              <ul className="mt-3 space-y-1.5 text-left">
+                {DEMO_ACCOUNTS.map((account) => (
+                  <li key={account.email}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(account.email);
+                        setPassword(DEMO_PASSWORD);
+                      }}
+                      className="w-full text-left text-xs font-mono text-ink-300 hover:text-signal"
+                    >
+                      {account.email}
+                      <span className="text-ink-500"> — {account.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <p className="mt-6 text-center text-sm text-ink-500">
             New resident?{" "}

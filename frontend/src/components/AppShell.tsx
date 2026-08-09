@@ -1,14 +1,31 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "../store/authStore";
 import { ROLE_LABELS } from "../lib/constants";
 import { NAV_BY_ROLE } from "../lib/nav";
+import { logout as revokeSession } from "../api/auth";
 import logo from "../assets/logo.svg";
 import AiChatBox from "./AiChatBox";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  async function handleLogout() {
+    const { refreshToken } = useAuthStore.getState();
+    if (refreshToken) {
+      // Revoke server-side so the refresh token cannot be rotated again. A
+      // failure here is not worth blocking on — the local session is cleared
+      // either way and the token expires on its own.
+      await revokeSession(refreshToken).catch(() => undefined);
+    }
+    logout();
+    // Drop every cached response so the next account cannot read this one's data.
+    queryClient.clear();
+    navigate("/login", { replace: true });
+  }
 
   if (!user) return null;
   const items = NAV_BY_ROLE[user.role];
@@ -48,10 +65,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {ROLE_LABELS[user.role]}
           </p>
           <button
-            onClick={() => {
-              logout();
-              navigate("/login");
-            }}
+            onClick={() => void handleLogout()}
             className="btn-secondary w-full text-xs"
           >
             Log Out
