@@ -1,9 +1,19 @@
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import EmptyState from "../../../components/EmptyState";
-import { sosAlerts } from "../../../api/mockData";
+import { sosAlerts, useMockData, notifyMockDataChanged } from "../../../api/mockData";
 
 export default function SOSInboxPage() {
+  useMockData();
+
+  function handleAcknowledge(id: string) {
+    const alert = sosAlerts.find((a) => a.id === id);
+    if (alert) {
+      alert.status = "ACKNOWLEDGED";
+      notifyMockDataChanged();
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -18,12 +28,19 @@ export default function SOSInboxPage() {
           {sosAlerts.map((a) => (
             <div key={a.id} className="flex items-center justify-between px-5 py-4">
               <div>
-                <p className="text-sm text-ink-100">Flat {a.flatNo}</p>
+                <p className="text-sm text-ink-100">Flat {a.flatNo} ({a.raisedBy})</p>
                 <p className="text-xs font-mono text-ink-500">{a.id} · {a.raisedAt}</p>
               </div>
               <div className="flex items-center gap-3">
                 <StatusBadge status={a.status} />
-                {a.status === "ACTIVE" && <button className="btn-primary py-1.5 px-3 text-xs">Acknowledge</button>}
+                {a.status === "ACTIVE" && (
+                  <button
+                    onClick={() => handleAcknowledge(a.id)}
+                    className="btn-primary py-1.5 px-3 text-xs"
+                  >
+                    Acknowledge
+                  </button>
+                )}
               </div>
             </div>
           ))}

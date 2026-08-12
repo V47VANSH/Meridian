@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
-import { invoices } from "../../../api/mockData";
+import { invoices, notifyMockDataChanged } from "../../../api/mockData";
 
 export default function PayNowPage() {
   const { invoiceId } = useParams();
@@ -13,7 +13,14 @@ export default function PayNowPage() {
     setStatus("processing");
     // Mock Razorpay Checkout flow — real integration will mount the
     // Razorpay embed here per the architecture doc, then confirm via webhook.
-    setTimeout(() => setStatus("success"), 1200);
+    setTimeout(() => {
+      const target = invoices.find((i) => i.id === invoice.id);
+      if (target) {
+        target.status = "PAID";
+        notifyMockDataChanged();
+      }
+      setStatus("success");
+    }, 1200);
   }
 
   return (

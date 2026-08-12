@@ -1,8 +1,9 @@
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { invoices } from "../../../api/mockData";
+import { invoices, useMockData } from "../../../api/mockData";
 
 export default function PaymentHistoryPage() {
+  useMockData();
   const paid = invoices.filter((i) => i.status === "PAID");
 
   return (

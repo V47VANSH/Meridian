@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { invoices } from "../../../api/mockData";
+import { invoices, useMockData } from "../../../api/mockData";
 
 export default function InvoiceListPage() {
+  useMockData();
   const navigate = useNavigate();
 
   return (
