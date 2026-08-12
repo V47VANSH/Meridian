@@ -3,12 +3,29 @@ import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import EmptyState from "../../../components/EmptyState";
 import { complaints, useMockData } from "../../../api/mockData";
+import { useAuthStore } from "../../../store/authStore";
 
 export default function ComplaintListPage() {
   useMockData();
+  const { user } = useAuthStore();
 
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const displayed = complaints.filter((c) => statusFilter === "ALL" || c.status === statusFilter);
+
+  // Show complaints belonging to the current logged-in user.
+  // We match by raisedBy name (what we stored on submit) so newly raised
+  // complaints appear immediately without needing a flatNo from the API.
+  const mine = complaints.filter((c) => {
+    if (user?.name && c.raisedBy === user.name) return true;
+    if (user?.flatNo && c.flatNo === user.flatNo) return true;
+    // Fallback: residents who have no flatNo in the API still see all
+    // complaints attributed to the default flat "B-304".
+    if (!user?.name && !user?.flatNo) return true;
+    return false;
+  });
+
+  const displayed = mine.filter(
+    (c) => statusFilter === "ALL" || c.status === statusFilter
+  );
 
   const [selected, setSelected] = useState<string | null>(null);
   const activeId = selected || displayed[0]?.id || null;
@@ -26,7 +43,7 @@ export default function ComplaintListPage() {
               key={status}
               onClick={() => {
                 setStatusFilter(status);
-                setSelected(null); // reset selected
+                setSelected(null);
               }}
               className={`rounded-xs px-2.5 py-1 transition ${
                 statusFilter === status
@@ -67,7 +84,10 @@ export default function ComplaintListPage() {
             {active && (
               <>
                 <p className="bp-eyebrow mb-1.5">{active.category}</p>
-                <h3 className="text-lg font-semibold mb-4">{active.title}</h3>
+                <h3 className="text-lg font-semibold mb-1">{active.title}</h3>
+                {active.description && (
+                  <p className="text-sm text-ink-300 mb-4 leading-relaxed">{active.description}</p>
+                )}
                 <ol className="space-y-4">
                   {active.timeline.map((t, idx) => (
                     <li key={idx} className="flex gap-3">

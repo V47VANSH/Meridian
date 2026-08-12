@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import PageHeader from "../../../components/PageHeader";
+import { guestPasses, useMockData, notifyMockDataChanged } from "../../../api/mockData";
+import { useAuthStore } from "../../../store/authStore";
 
 // Deterministic pseudo-QR pattern generated from the pass id — a visual
 // placeholder only. Swap for a real QR lib (e.g. qrcode.react) at integration.
@@ -18,15 +20,33 @@ function PseudoQR({ seed }: { seed: string }) {
 }
 
 export default function GuestPassGeneratePage() {
-  const [pass, setPass] = useState<{ id: string; name: string; date: string } | null>(null);
+  useMockData();
+  const { user } = useAuthStore();
+  const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [date, setDate] = useState("2026-07-14");
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  });
   const [purpose, setPurpose] = useState("Personal visit");
 
   function handleGenerate(e: FormEvent) {
     e.preventDefault();
-    setPass({ id: `GP-${Math.floor(2000 + Math.random() * 500)}`, name, date });
+    const id = `GP-${2200 + guestPasses.length + 1}`;
+    guestPasses.unshift({
+      id,
+      guestName: name,
+      purpose,
+      validOn: date,
+      flatNo: user?.flatNo || "B-304",
+      status: "ACTIVE",
+    });
+    notifyMockDataChanged();
+    setGeneratedId(id);
   }
+
+  const pass = generatedId ? guestPasses.find((p) => p.id === generatedId) : null;
 
   return (
     <div className="max-w-lg">
@@ -43,9 +63,12 @@ export default function GuestPassGeneratePage() {
               <PseudoQR seed={pass.id} />
             </div>
             <p className="font-mono text-xs text-ink-500 mb-1">{pass.id}</p>
-            <p className="text-lg font-display font-semibold mb-1">{pass.name}</p>
-            <p className="text-sm text-ink-300 mb-6">Valid on {pass.date} · {purpose}</p>
-            <button className="btn-secondary" onClick={() => setPass(null)}>
+            <p className="text-lg font-display font-semibold mb-1">{pass.guestName}</p>
+            <p className="text-sm text-ink-300 mb-6">Valid on {pass.validOn} · {pass.purpose}</p>
+            <button
+              className="btn-secondary"
+              onClick={() => { setGeneratedId(null); setName(""); }}
+            >
               Generate Another
             </button>
           </div>
@@ -53,7 +76,13 @@ export default function GuestPassGeneratePage() {
           <form onSubmit={handleGenerate} className="space-y-5">
             <div>
               <label className="label-field">Guest Name</label>
-              <input required value={name} onChange={(e) => setName(e.target.value)} className="input-field" placeholder="Guest full name" />
+              <input
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="input-field"
+                placeholder="Guest full name"
+              />
             </div>
             <div>
               <label className="label-field">Purpose of Visit</label>
@@ -66,7 +95,13 @@ export default function GuestPassGeneratePage() {
             </div>
             <div>
               <label className="label-field">Valid On</label>
-              <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="input-field" />
+              <input
+                type="date"
+                required
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="input-field"
+              />
             </div>
             <button type="submit" className="btn-primary w-full">Generate Pass</button>
           </form>

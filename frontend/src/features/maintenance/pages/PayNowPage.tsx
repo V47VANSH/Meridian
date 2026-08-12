@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
-import { invoices, notifyMockDataChanged } from "../../../api/mockData";
+import { invoices, residents, notifyMockDataChanged } from "../../../api/mockData";
 
 export default function PayNowPage() {
   const { invoiceId } = useParams();
@@ -17,6 +17,16 @@ export default function PayNowPage() {
       const target = invoices.find((i) => i.id === invoice.id);
       if (target) {
         target.status = "PAID";
+        const targetFlat = target.flatNo || "B-304";
+        const hasRemainingDues = invoices.some(
+          (i) => (i.flatNo === targetFlat || (!i.flatNo && targetFlat === "B-304")) && i.status !== "PAID"
+        );
+        if (!hasRemainingDues) {
+          const res = residents.find((r) => r.flatNo === targetFlat);
+          if (res) {
+            res.duesStatus = "CLEAR";
+          }
+        }
         notifyMockDataChanged();
       }
       setStatus("success");

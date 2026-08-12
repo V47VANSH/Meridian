@@ -59,7 +59,7 @@ export const complaints: Complaint[] = [
     id: "CMP-1042",
     title: "Water leakage in basement parking",
     category: "Plumbing",
-    raisedBy: "Resident",
+    raisedBy: "Arjun Rao",
     flatNo: "B-304",
     status: "IN_PROGRESS",
     urgency: "URGENT",
@@ -75,8 +75,8 @@ export const complaints: Complaint[] = [
     id: "CMP-1041",
     title: "Lift making unusual noise — Block C",
     category: "Electrical/Mechanical",
-    raisedBy: "Resident",
-    flatNo: "C-101",
+    raisedBy: "Arjun Rao",
+    flatNo: "B-304",
     status: "OPEN",
     urgency: "MEDIUM",
     createdAt: "2026-07-10",
@@ -87,8 +87,8 @@ export const complaints: Complaint[] = [
     id: "CMP-1039",
     title: "Garden light not working near Gate 2",
     category: "Common Area",
-    raisedBy: "Resident",
-    flatNo: "A-207",
+    raisedBy: "Arjun Rao",
+    flatNo: "B-304",
     status: "RESOLVED",
     urgency: "LOW",
     createdAt: "2026-07-02",
@@ -181,8 +181,8 @@ export const announcements: Announcement[] = [
     postedBy: "Society Official",
     postedAt: "Jul 12, 2026",
     comments: [
-      { id: "COM-01", author: "Resident C101", role: "Resident", body: "Will the clubhouse water also be turned off?", postedAt: "Jul 12, 4:15 PM" },
-      { id: "COM-02", author: "Society Official", role: "Official", body: "Yes, the main supply header is being cleaned, so all outlets are affected.", postedAt: "Jul 12, 5:00 PM" }
+      { id: "COM-01", author: "Resident C101", role: "Resident / Flat Owner", body: "Will the clubhouse water also be turned off?", postedAt: "Jul 12, 4:15 PM" },
+      { id: "COM-02", author: "Society Official", role: "Society Official", body: "Yes, the main supply header is being cleaned, so all outlets are affected.", postedAt: "Jul 12, 5:00 PM" }
     ]
   },
   {
@@ -192,7 +192,7 @@ export const announcements: Announcement[] = [
     postedBy: "Society Official",
     postedAt: "Jul 9, 2026",
     comments: [
-      { id: "COM-03", author: "Resident A102", role: "Resident", body: "Can we submit agenda items in advance?", postedAt: "Jul 10, 9:00 AM" }
+      { id: "COM-03", author: "Resident A102", role: "Resident / Flat Owner", body: "Can we submit agenda items in advance?", postedAt: "Jul 10, 9:00 AM" }
     ]
   },
   {

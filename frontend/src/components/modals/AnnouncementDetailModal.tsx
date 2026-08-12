@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Announcement, announcements, Comment, notifyMockDataChanged } from "../../api/mockData";
 import { useAuthStore } from "../../store/authStore";
+import { ROLE_LABELS } from "../../lib/constants";
 
 interface AnnouncementDetailModalProps {
   announcement: Announcement;
@@ -23,10 +24,12 @@ export default function AnnouncementDetailModal({ announcement, onClose }: Annou
       if (!targetAnn.comments) {
         targetAnn.comments = [];
       }
-      const authorName = user
-        ? `${user.name} (${user.flatNo || "Staff"})`
-        : "Visitor";
-      const roleLabel = user ? user.role.replace("_", " ") : "Guest";
+      const roleLabel = user && user.role && ROLE_LABELS[user.role]
+        ? ROLE_LABELS[user.role]
+        : (user?.role ? user.role.replace("_", " ") : "Resident / Flat Owner");
+      
+      const flatLabel = user?.flatNo ? ` (Flat ${user.flatNo})` : "";
+      const authorName = user ? `${user.name}${flatLabel}` : "Resident";
 
       const freshComment: Comment = {
         id: `COM-${Date.now()}`,
@@ -81,7 +84,12 @@ export default function AnnouncementDetailModal({ announcement, onClose }: Annou
               comments.map((c) => (
                 <div key={c.id} className="text-xs border-b border-blueprint-800 pb-2 last:border-0">
                   <div className="flex justify-between items-center mb-0.5">
-                    <span className="font-semibold text-ink-100 font-mono text-[11px]">{c.author}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-ink-100 font-mono text-[11px]">{c.author}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-blueprint-800 text-signal font-mono">
+                        {c.role || "Resident / Flat Owner"}
+                      </span>
+                    </div>
                     <span className="text-[9px] text-ink-500 font-mono">{c.postedAt}</span>
                   </div>
                   <p className="text-ink-300 font-body leading-normal">{c.body}</p>

@@ -1,8 +1,18 @@
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { staffTasks } from "../../../api/mockData";
+import { staffTasks, useMockData, notifyMockDataChanged } from "../../../api/mockData";
 
 export default function StaffTasksPage() {
+  useMockData();
+
+  function handleStatusChange(id: string, newStatus: "PENDING" | "IN_PROGRESS" | "DONE") {
+    const task = staffTasks.find((t) => t.id === id);
+    if (task) {
+      task.status = newStatus;
+      notifyMockDataChanged();
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -20,7 +30,13 @@ export default function StaffTasksPage() {
             </div>
             <div className="flex items-center gap-3">
               <StatusBadge status={t.status} />
-              <select className="input-field py-1 text-xs w-32" defaultValue={t.status}>
+              <select
+                className="input-field py-1 text-xs w-32"
+                value={t.status}
+                onChange={(e) =>
+                  handleStatusChange(t.id, e.target.value as "PENDING" | "IN_PROGRESS" | "DONE")
+                }
+              >
                 <option value="PENDING">Pending</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="DONE">Done</option>

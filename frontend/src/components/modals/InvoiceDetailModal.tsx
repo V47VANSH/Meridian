@@ -22,6 +22,16 @@ export default function InvoiceDetailModal({ invoiceId, onClose }: InvoiceDetail
     if (target) {
       target.status = "PAID";
       setInvoice({ ...target });
+      const targetFlat = target.flatNo || "B-304";
+      const hasRemainingDues = invoices.some(
+        (i) => (i.flatNo === targetFlat || (!i.flatNo && targetFlat === "B-304")) && i.status !== "PAID"
+      );
+      if (!hasRemainingDues) {
+        const res = residents.find((r) => r.flatNo === targetFlat);
+        if (res) {
+          res.duesStatus = "CLEAR";
+        }
+      }
       notifyMockDataChanged();
     }
   };
