@@ -1,8 +1,11 @@
-"""Facility and booking API tests, including the double-booking guard."""
-
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+
+
+def _future_date(days: int = 10) -> str:
+    return (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 def _create_facility(client: TestClient, headers: dict, name: str = "Clubhouse") -> dict:
@@ -21,8 +24,10 @@ def _create_slot(
     facility_id: str,
     start: str = "18:00",
     end: str = "19:00",
-    date: str = "2026-07-14",
+    date: str | None = None,
 ) -> dict:
+    if date is None:
+        date = _future_date(10)
     response = client.post(
         f"/api/v1/facilities/{facility_id}/slots",
         json={"date": date, "start_time": start, "end_time": end},
@@ -152,7 +157,7 @@ def test_blocked_slot_cannot_be_booked(client: TestClient, society: dict, login)
     response = client.post(
         f"/api/v1/facilities/{facility['id']}/slots",
         json={
-            "date": "2026-07-14",
+            "date": _future_date(10),
             "start_time": "10:00",
             "end_time": "11:00",
             "is_bookable": False,
@@ -232,3 +237,17 @@ def test_booking_an_unknown_slot_returns_not_found(client: TestClient, society: 
 
     assert response.status_code == 404
     assert response.json()["error"] == "SLOT_NOT_FOUND"
+
+
+def test_a_slot_whose_date_has_passed_cannot_be_booked(client: TestClient, society: dict, login):
+    """TC-12: a slot whose date has passed cannot be published or booked."""
+    official = login("official")
+    facility = _create_facility(client, official)
+
+    res_pub = client.post(
+        f"/api/v1/facilities/{facility['id']}/slots",
+        json={"date": "2026-07-03", "start_time": "18:00", "end_time": "19:00", "is_bookable": True},
+        headers=official,
+    )
+    assert res_pub.status_code in (409, 422), res_pub.text
+

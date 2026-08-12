@@ -128,9 +128,10 @@ def test_outsider_cannot_book_another_societys_slot(client: TestClient, society:
         json={"name": "Clubhouse", "capacity": 40},
         headers=official,
     ).json()
+    future_date = (datetime.now(timezone.utc) + timedelta(days=10)).strftime("%Y-%m-%d")
     slot = client.post(
         f"/api/v1/facilities/{facility['id']}/slots",
-        json={"date": "2026-07-14", "start_time": "18:00", "end_time": "19:00"},
+        json={"date": future_date, "start_time": "18:00", "end_time": "19:00"},
         headers=official,
     ).json()
 

@@ -224,14 +224,6 @@ def test_pass_list_does_not_expose_tokens(client: TestClient, society: dict, log
     assert all(p["qr_token"] is None for p in response.json())
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Known defect: validity is only re-evaluated when a guard scans a pass, so a pass "
-        "whose window has closed is still listed as ACTIVE until someone scans it. "
-        "Scheduled for the next sprint."
-    ),
-    strict=True,
-)
 def test_expired_pass_is_listed_as_expired(client: TestClient, society: dict, login):
     """A pass past its validity window should not be listed as ACTIVE.
 

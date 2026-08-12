@@ -40,6 +40,7 @@ from app.schemas import (
     FacilityResponse,
     SlotCreate,
     SlotResponse,
+    SlotUpdate,
 )
 from app.services import audit, notifications
 
@@ -176,6 +177,12 @@ def create_slot(
     """Open a time window on a facility's calendar."""
     facility = _load_facility(db, facility_id, tenant_id)
 
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if payload.date < today_str:
+        raise ConflictError(
+            "Cannot publish a slot for a past date", error="SLOT_NOT_BOOKABLE"
+        )
+
     duplicate = db.scalar(
         select(FacilitySlot).where(
             FacilitySlot.facility_id == facility.id,
@@ -259,6 +266,16 @@ def create_booking(
         raise ConflictError(
             "This slot has been blocked by the society office", error="SLOT_NOT_BOOKABLE"
         )
+
+    try:
+        slot_end_dt = datetime.strptime(f"{slot.date} {slot.end_time}", "%Y-%m-%d %H:%M")
+        now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+        if slot_end_dt < now_naive:
+            raise ConflictError(
+                "This slot is in the past and cannot be booked", error="SLOT_NOT_BOOKABLE"
+            )
+    except ValueError:
+        pass
 
     with _slot_locks[slot.id]:
         if _confirmed_booking(db, slot.id) is not None:
@@ -379,3 +396,70 @@ def cancel_booking(
     slot = db.get(FacilitySlot, booking.slot_id)
     facility = db.get(Facility, slot.facility_id)
     return _booking_response(booking, slot, facility)
+
+
+@router.get(
+    "/bookings/{booking_id}",
+    response_model=BookingResponse,
+    summary="Get a booking confirmation details",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Booking not found"},
+    },
+)
+def get_booking(
+    booking_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> BookingResponse:
+    """Fetch details of a single booking."""
+    booking = db.get(Booking, booking_id)
+    if booking is None or booking.tenant_id != tenant_id:
+        raise NotFoundError("Booking not found", error="BOOKING_NOT_FOUND")
+
+    if booking.booked_by != user.id and user.role != Role.SOCIETY_OFFICIAL.value:
+        raise ForbiddenError("You may only view your own bookings", error="NOT_YOUR_BOOKING")
+
+    slot = db.get(FacilitySlot, booking.slot_id)
+    facility = db.get(Facility, slot.facility_id) if slot else None
+    return _booking_response(booking, slot, facility)
+
+
+@router.patch(
+    "/facilities/{facility_id}/slots/{slot_id}",
+    response_model=SlotResponse,
+    summary="Update a slot's availability status (Society Official)",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Facility or slot not found"},
+    },
+)
+def update_slot(
+    facility_id: str,
+    slot_id: str,
+    payload: SlotUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> SlotResponse:
+    """Block or unblock a time slot on the facility schedule."""
+    facility = _load_facility(db, facility_id, tenant_id)
+    slot = db.get(FacilitySlot, slot_id)
+    if slot is None or slot.facility_id != facility.id:
+        raise NotFoundError("Slot not found", error="SLOT_NOT_FOUND")
+
+    slot.is_bookable = payload.is_bookable
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="SLOT_UPDATED",
+        entity_type="FacilitySlot",
+        entity_id=slot.id,
+        detail=f"is_bookable={payload.is_bookable}",
+    )
+    db.commit()
+    db.refresh(slot)
+    return _slot_response(db, slot)
+

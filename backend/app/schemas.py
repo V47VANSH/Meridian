@@ -446,6 +446,64 @@ class NotificationResponse(BaseModel):
     sent_at: datetime
 
 
+class OfflinePaymentRequest(BaseModel):
+    method: str = Field("CASH", max_length=32, description="Payment method: CASH, CHEQUE, BANK_TRANSFER, etc.")
+    reference_note: str = Field("", max_length=300, description="Receipt or reference number")
+
+
+class ComplaintPriorityUpdate(BaseModel):
+    urgency: UrgencyLevel
+    note: str = Field("", max_length=500)
+
+
+class ComplaintSummaryResponse(BaseModel):
+    total_complaints: int
+    open_count: int
+    in_progress_count: int
+    resolved_count: int
+    closed_count: int
+    high_urgency_count: int
+
+
+class SlotUpdate(BaseModel):
+    is_bookable: bool
+
+
+class ResidentDashboardResponse(BaseModel):
+    pending_invoice: InvoiceResponse | None = None
+    open_complaints: list[ComplaintResponse] = Field(default_factory=list)
+    upcoming_bookings: list[BookingResponse] = Field(default_factory=list)
+    latest_announcements: list[AnnouncementResponse] = Field(default_factory=list)
+
+
+class OfficialDashboardResponse(BaseModel):
+    open_complaints_count: int
+    overdue_invoices_count: int
+    pending_dues_residents_count: int
+    active_bookings_count: int
+    active_sos_count: int
+    total_flats: int
+
+
+class NonResidentDashboardResponse(BaseModel):
+    pending_invoice: InvoiceResponse | None = None
+    open_complaints: list[ComplaintResponse] = Field(default_factory=list)
+    latest_announcements: list[AnnouncementResponse] = Field(default_factory=list)
+
+
+class AuditLogResponse(BaseModel):
+    model_config = ORM
+
+    id: str
+    tenant_id: str
+    actor: str
+    action: str
+    entity_type: str
+    entity_id: str
+    detail: str
+    created_at: datetime
+
+
 # Re-exported so routers can reference the enums for query parameters.
 __all__ = [name for name in dir() if not name.startswith("_")]
 
@@ -456,3 +514,4 @@ _ENUMS = (
     GuestPassStatus,
     SOSStatus,
 )
+

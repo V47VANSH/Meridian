@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_roles
 from app.core.errors import ConflictError, NotFoundError
 from app.db.session import get_db
-from app.models import Flat, FlatOwnership, Role, Tenant, User
+from app.models import AuditLog, Flat, FlatOwnership, Role, Tenant, User
 from app.schemas import (
+    AuditLogResponse,
     ErrorResponse,
     FlatAssignRequest,
     FlatCreate,
@@ -224,3 +225,24 @@ def list_users(
         query = query.where(User.role == role.value)
     users = db.scalars(query.order_by(User.full_name)).all()
     return [UserResponse.model_validate(u) for u in users]
+
+
+@router.get(
+    "/audit-logs",
+    response_model=list[AuditLogResponse],
+    summary="List society audit log history (Society Official)",
+    responses=AUTH_ERRORS,
+)
+def list_audit_logs(
+    db: Session = Depends(get_db),
+    _: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> list[AuditLogResponse]:
+    """Return audit log entries for the caller's society."""
+    logs = db.scalars(
+        select(AuditLog)
+        .where(AuditLog.tenant_id == tenant_id)
+        .order_by(AuditLog.created_at.desc())
+    ).all()
+    return [AuditLogResponse.model_validate(l) for l in logs]
+

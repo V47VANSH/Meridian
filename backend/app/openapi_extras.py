@@ -20,6 +20,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "GET /api/v1/maintenance/invoices",
                     "GET /api/v1/maintenance/invoices/{invoice_id}",
+                    "GET /api/v1/maintenance/payments/{payment_id}",
                 ],
             },
             {
@@ -31,6 +32,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "POST /api/v1/maintenance/invoices/{invoice_id}/pay",
                     "POST /api/v1/maintenance/invoices/{invoice_id}/payments/confirm",
+                    "POST /api/v1/maintenance/invoices/{invoice_id}/remind",
                     "GET /api/v1/maintenance/payments",
                 ],
             },
@@ -42,6 +44,7 @@ USER_STORY_MAPPING = [
                 ),
                 "endpoints": [
                     "POST /api/v1/maintenance/invoices",
+                    "POST /api/v1/maintenance/invoices/{invoice_id}/offline-payment",
                     "GET /api/v1/maintenance/summary",
                 ],
             },
@@ -74,6 +77,7 @@ USER_STORY_MAPPING = [
                 ),
                 "endpoints": [
                     "GET /api/v1/complaints",
+                    "GET /api/v1/complaints/summary",
                     "GET /api/v1/complaints/{complaint_id}",
                 ],
             },
@@ -83,7 +87,11 @@ USER_STORY_MAPPING = [
                     "As a society official, I want complaints categorised and prioritised "
                     "automatically so that urgent issues surface first."
                 ),
-                "endpoints": ["POST /api/v1/complaints", "GET /api/v1/complaints"],
+                "endpoints": [
+                    "POST /api/v1/complaints",
+                    "GET /api/v1/complaints",
+                    "PATCH /api/v1/complaints/{complaint_id}/priority",
+                ],
             },
             {
                 "id": "US-2.4",
@@ -110,6 +118,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "GET /api/v1/facilities",
                     "GET /api/v1/facilities/{facility_id}/slots",
+                    "GET /api/v1/bookings/{booking_id}",
                 ],
             },
             {
@@ -137,6 +146,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "POST /api/v1/facilities",
                     "POST /api/v1/facilities/{facility_id}/slots",
+                    "PATCH /api/v1/facilities/{facility_id}/slots/{slot_id}",
                 ],
             },
         ],
@@ -153,6 +163,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "POST /api/v1/visitors/guest-passes",
                     "GET /api/v1/visitors/guest-passes",
+                    "GET /api/v1/visitors/guest-passes/{pass_id}",
                 ],
             },
             {
@@ -177,7 +188,11 @@ USER_STORY_MAPPING = [
                     "As a resident, I want an SOS button so that guards are alerted "
                     "instantly in an emergency."
                 ),
-                "endpoints": ["POST /api/v1/sos", "GET /api/v1/sos"],
+                "endpoints": [
+                    "POST /api/v1/sos",
+                    "GET /api/v1/sos",
+                    "GET /api/v1/sos/{incident_id}",
+                ],
             },
             {
                 "id": "US-4.5",
@@ -207,6 +222,7 @@ USER_STORY_MAPPING = [
                     "POST /api/v1/auth/refresh",
                     "POST /api/v1/auth/logout",
                     "GET /api/v1/auth/me",
+                    "GET /api/v1/dashboard/resident",
                 ],
             },
             {
@@ -220,6 +236,8 @@ USER_STORY_MAPPING = [
                     "GET /api/v1/flats",
                     "POST /api/v1/flats/{flat_id}/occupants",
                     "GET /api/v1/users",
+                    "GET /api/v1/dashboard/official",
+                    "GET /api/v1/audit-logs",
                 ],
             },
             {
@@ -252,6 +270,7 @@ USER_STORY_MAPPING = [
                 "endpoints": [
                     "GET /api/v1/maintenance/invoices",
                     "GET /api/v1/complaints",
+                    "GET /api/v1/dashboard/non-resident",
                 ],
             },
             {

@@ -36,6 +36,8 @@ from app.schemas import (
     InvoiceCreate,
     InvoiceResponse,
     MaintenanceSummaryResponse,
+    MessageResponse,
+    OfflinePaymentRequest,
     PaymentConfirmRequest,
     PaymentOrderResponse,
     PaymentResponse,
@@ -475,3 +477,141 @@ def risk_score(
         risk_score=record.risk_score,
         computed_at=record.computed_at,
     )
+
+
+@router.post(
+    "/invoices/{invoice_id}/remind",
+    response_model=MessageResponse,
+    summary="Send a payment reminder for an invoice",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Invoice not found"},
+        409: {"model": ErrorResponse, "description": "Invoice is already paid"},
+    },
+)
+def remind_invoice(
+    invoice_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> MessageResponse:
+    """Send a payment reminder notification to occupants linked to the invoice flat."""
+    invoice = _load_invoice(db, invoice_id, tenant_id)
+    if invoice.status == InvoiceStatus.PAID.value:
+        raise ConflictError("This invoice has already been paid", error="INVOICE_ALREADY_PAID")
+
+    occupants = list(
+        db.scalars(select(FlatOwnership.user_id).where(FlatOwnership.flat_id == invoice.flat_id))
+    )
+    if not occupants:
+        return MessageResponse(message="No residents linked to this flat to send reminder to")
+
+    notifications.notify_many(
+        db,
+        tenant_id=tenant_id,
+        user_ids=occupants,
+        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        title=f"Payment Reminder: Maintenance for {invoice.period}",
+        body=f"Reminder: ₹{invoice.amount:.2f} due on {invoice.due_date.date()}.",
+    )
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="INVOICE_REMINDER_SENT",
+        entity_type="MaintenanceInvoice",
+        entity_id=invoice.id,
+        detail=f"Period {invoice.period}",
+    )
+    db.commit()
+    return MessageResponse(message=f"Reminder sent to {len(occupants)} resident(s)")
+
+
+@router.post(
+    "/invoices/{invoice_id}/offline-payment",
+    response_model=PaymentResponse,
+    summary="Record an offline maintenance payment (Society Official)",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Invoice not found"},
+        409: {"model": ErrorResponse, "description": "Invoice is already paid"},
+    },
+)
+def record_offline_payment(
+    invoice_id: str,
+    payload: OfflinePaymentRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> PaymentResponse:
+    """Manually record a cash/cheque/bank-transfer payment and mark the invoice paid."""
+    invoice = _load_invoice(db, invoice_id, tenant_id)
+    if invoice.status == InvoiceStatus.PAID.value:
+        raise ConflictError("This invoice has already been paid", error="INVOICE_ALREADY_PAID")
+
+    order_id = f"offline_{uuid.uuid4().hex[:16]}"
+    payment_id = f"pay_{uuid.uuid4().hex[:16]}"
+    payment = Payment(
+        invoice_id=invoice.id,
+        razorpay_order_id=order_id,
+        razorpay_payment_id=payment_id,
+        amount=invoice.amount,
+        status=PaymentStatus.CAPTURED.value,
+        method=payload.method,
+    )
+    db.add(payment)
+
+    invoice.status = InvoiceStatus.PAID.value
+    invoice.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    occupants = list(
+        db.scalars(select(FlatOwnership.user_id).where(FlatOwnership.flat_id == invoice.flat_id))
+    )
+    notifications.notify_many(
+        db,
+        tenant_id=tenant_id,
+        user_ids=occupants,
+        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        title=f"Payment recorded for {invoice.period}",
+        body=f"Offline payment of ₹{invoice.amount:.2f} ({payload.method}) recorded.",
+    )
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="OFFLINE_PAYMENT_RECORDED",
+        entity_type="MaintenanceInvoice",
+        entity_id=invoice.id,
+        detail=f"{payload.method} ₹{invoice.amount}",
+    )
+    db.commit()
+    db.refresh(payment)
+    return PaymentResponse.model_validate(payment)
+
+
+@router.get(
+    "/payments/{payment_id}",
+    response_model=PaymentResponse,
+    summary="Get payment details / receipt",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Payment record not found"},
+    },
+)
+def get_payment(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> PaymentResponse:
+    """Fetch details/receipt for a single payment."""
+    payment = db.get(Payment, payment_id)
+    if payment is None:
+        raise NotFoundError("Payment not found", error="ORDER_NOT_FOUND")
+    invoice = db.get(MaintenanceInvoice, payment.invoice_id)
+    if invoice is None or invoice.tenant_id != tenant_id:
+        raise NotFoundError("Payment not found", error="ORDER_NOT_FOUND")
+
+    _assert_can_view(db, user, invoice)
+    return PaymentResponse.model_validate(payment)
+

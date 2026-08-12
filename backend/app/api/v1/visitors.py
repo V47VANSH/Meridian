@@ -55,6 +55,18 @@ def _naive_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _refresh_expired_passes(db: Session, passes: list[GuestPass]) -> None:
+    """Flip ACTIVE passes whose validity window has closed to EXPIRED on read."""
+    now = _naive_now()
+    changed = False
+    for p in passes:
+        if p.status == GuestPassStatus.ACTIVE.value and p.valid_until < now:
+            p.status = GuestPassStatus.EXPIRED.value
+            changed = True
+    if changed:
+        db.commit()
+
+
 def _pass_response(guest_pass: GuestPass, *, include_token: bool) -> GuestPassResponse:
     """The raw token is only ever returned to the resident who created the pass."""
     return GuestPassResponse(
@@ -156,10 +168,13 @@ def list_guest_passes(
     wide_view = {Role.SOCIETY_OFFICIAL.value, Role.SECURITY_GUARD.value}
     if user.role not in wide_view:
         query = query.where(GuestPass.generated_by == user.id)
-    if pass_status:
-        query = query.where(GuestPass.status == pass_status.value)
 
-    passes = db.scalars(query.order_by(GuestPass.created_at.desc())).all()
+    passes = list(db.scalars(query.order_by(GuestPass.created_at.desc())))
+    _refresh_expired_passes(db, passes)
+
+    if pass_status:
+        passes = [p for p in passes if p.status == pass_status.value]
+
     # The token is withheld here — a list view is not where a secret belongs.
     return [_pass_response(p, include_token=False) for p in passes]
 
@@ -280,6 +295,34 @@ def revoke_guest_pass(
     db.commit()
     db.refresh(guest_pass)
     return _pass_response(guest_pass, include_token=False)
+
+
+@router.get(
+    "/visitors/guest-passes/{pass_id}",
+    response_model=GuestPassResponse,
+    summary="Get details of a guest pass",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Pass not found"},
+    },
+)
+def get_guest_pass(
+    pass_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> GuestPassResponse:
+    """Fetch details of a guest pass. Includes token if caller is creator or official."""
+    guest_pass = db.get(GuestPass, pass_id)
+    if guest_pass is None or guest_pass.tenant_id != tenant_id:
+        raise NotFoundError("Guest pass not found", error="PASS_NOT_FOUND")
+
+    wide_view = {Role.SOCIETY_OFFICIAL.value, Role.SECURITY_GUARD.value}
+    if user.role not in wide_view and guest_pass.generated_by != user.id:
+        raise ForbiddenError("You may only view passes you issued", error="NOT_YOUR_PASS")
+
+    include_token = guest_pass.generated_by == user.id or user.role == Role.SOCIETY_OFFICIAL.value
+    return _pass_response(guest_pass, include_token=include_token)
 
 
 # ---------------------------------------------------------------------------
@@ -467,3 +510,31 @@ def resolve_sos(
     db.commit()
     db.refresh(incident)
     return SOSResponse.model_validate(incident)
+
+
+@router.get(
+    "/sos/{incident_id}",
+    response_model=SOSResponse,
+    summary="Get details of an SOS incident",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Incident not found"},
+    },
+)
+def get_sos(
+    incident_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    tenant_id: str = Depends(get_tenant_id),
+) -> SOSResponse:
+    """Fetch status and details of an SOS incident."""
+    incident = db.get(SOSIncident, incident_id)
+    if incident is None or incident.tenant_id != tenant_id:
+        raise NotFoundError("SOS incident not found", error="SOS_NOT_FOUND")
+
+    responders = {Role.SECURITY_GUARD.value, Role.SOCIETY_OFFICIAL.value}
+    if user.role not in responders and incident.raised_by != user.id:
+        raise ForbiddenError("You may only view SOS incidents you raised", error="FORBIDDEN")
+
+    return SOSResponse.model_validate(incident)
+

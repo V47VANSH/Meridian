@@ -29,8 +29,10 @@ from app.models import (
 from app.schemas import (
     ComplaintAssignRequest,
     ComplaintCreate,
+    ComplaintPriorityUpdate,
     ComplaintResponse,
     ComplaintStatusUpdate,
+    ComplaintSummaryResponse,
     ErrorResponse,
 )
 from app.services import audit, notifications
@@ -211,6 +213,29 @@ def list_complaints(
 
 
 @router.get(
+    "/summary",
+    response_model=ComplaintSummaryResponse,
+    summary="Summary statistics of complaints",
+    responses=AUTH_ERRORS,
+)
+def complaint_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(*TRIAGE_ROLES)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> ComplaintSummaryResponse:
+    """Return aggregated counts of complaints by status and urgency."""
+    rows = list(db.scalars(select(Complaint).where(Complaint.tenant_id == tenant_id)))
+    return ComplaintSummaryResponse(
+        total_complaints=len(rows),
+        open_count=len([c for c in rows if c.status == ComplaintStatus.OPEN.value]),
+        in_progress_count=len([c for c in rows if c.status == ComplaintStatus.IN_PROGRESS.value]),
+        resolved_count=len([c for c in rows if c.status == ComplaintStatus.RESOLVED.value]),
+        closed_count=len([c for c in rows if c.status == ComplaintStatus.CLOSED.value]),
+        high_urgency_count=len([c for c in rows if c.urgency == UrgencyLevel.HIGH.value]),
+    )
+
+
+@router.get(
     "/{complaint_id}",
     response_model=ComplaintResponse,
     summary="Get a complaint with its full status history",
@@ -363,3 +388,47 @@ def assign_complaint(
     db.commit()
     db.refresh(complaint)
     return _to_response(complaint)
+
+
+@router.patch(
+    "/{complaint_id}/priority",
+    response_model=ComplaintResponse,
+    summary="Update complaint priority / urgency level",
+    responses={
+        **AUTH_ERRORS,
+        404: {"model": ErrorResponse, "description": "Complaint not found"},
+    },
+)
+def update_priority(
+    complaint_id: str,
+    payload: ComplaintPriorityUpdate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(*TRIAGE_ROLES)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> ComplaintResponse:
+    """Reprioritise a complaint (HIGH, MEDIUM, LOW) manually."""
+    complaint = _load(db, complaint_id, tenant_id)
+    complaint.urgency = payload.urgency.value
+    complaint.needs_manual_triage = False
+
+    db.add(
+        ComplaintStatusHistory(
+            complaint_id=complaint.id,
+            status=complaint.status,
+            changed_by=user.id,
+            note=payload.note or f"Priority updated to {payload.urgency.value}",
+        )
+    )
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="COMPLAINT_PRIORITY_UPDATED",
+        entity_type="Complaint",
+        entity_id=complaint.id,
+        detail=payload.urgency.value,
+    )
+    db.commit()
+    db.refresh(complaint)
+    return _to_response(complaint)
+
