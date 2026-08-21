@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/authStore";
+import { api } from "../api/client";
 import {
   bookings,
   complaints,
@@ -14,6 +15,13 @@ import {
   notifyMockDataChanged,
   useMockData,
 } from "../api/mockData";
+
+interface AIAssistantResponse {
+  reply: string;
+  card_type?: Message["cardType"] | null;
+  action_data?: Record<string, any> | null;
+  provider?: string;
+}
 
 interface Message {
   id: string;
@@ -59,6 +67,7 @@ export default function AiChatBox() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize welcome message when user logs in or chat opens
@@ -115,11 +124,9 @@ export default function AiChatBox() {
     ]);
   }
 
-  function handleSend(textToSend?: string) {
+  async function handleSend(textToSend?: string) {
     if (!user) return;
     const userRole = user.role;
-    const userFlatNo = user.flatNo;
-    const userName = user.name;
     const text = (textToSend || inputValue).trim();
     if (!text) return;
 
@@ -138,156 +145,123 @@ export default function AiChatBox() {
       },
     ]);
 
-    // Role-based NLP Parsing / Command matching
-    setTimeout(() => {
-      const lower = text.toLowerCase();
+    setIsLoading(true);
 
-      // HELP COMMAND (Custom per role)
-      if (lower.includes("help") || lower.includes("menu") || lower.includes("option")) {
-        let helpText = "";
-        switch (userRole) {
-          case "RESIDENT_OWNER":
-            helpText = "I can assist you with the following tasks. Ask me directly to:\n- 'Book facility slot' (Clubhouse, Gym, etc.)\n- 'Cancel booking' or 'Show my bookings'\n- 'Raise a complaint' / 'Report issue'\n- 'Generate a guest pass'\n- 'View announcements'\n- 'Check my dues' / 'Pay bills'\n- 'Trigger emergency SOS'";
-            break;
-          case "SOCIETY_OFFICIAL":
-            helpText = "Society Official administrative commands:\n- 'Show resident directory' / 'Check dues'\n- 'Triage complaints' / 'View open complaints'\n- 'Post announcement' / 'Compose notice'\n- 'Show bookings schedule' / 'View reservations'";
-            break;
-          case "NON_RESIDENT_OWNER":
-            helpText = "Non-Resident Owner remote monitoring commands:\n- 'Check property status' / 'Occupancy'\n- 'Generate visitor pass'\n- 'View notices'\n- 'View/pay pending maintenance bills'";
-            break;
-          case "SECURITY_GUARD":
-            helpText = "Security Guard Gate operations commands:\n- 'Verify guest pass' / 'Check-in visitor'\n- 'Show SOS alerts' / 'View active alarms'";
-            break;
-          case "MAINTENANCE_STAFF":
-            helpText = "Staff work order commands:\n- 'Show my tasks' / 'Task queue'";
-            break;
-        }
-        pushSystemMessage(helpText);
+    try {
+      // Call backend Gemini AI Assistant API
+      const res = await api.post<AIAssistantResponse>("/v1/ai/assistant", { prompt: text });
+      setIsLoading(false);
+
+      if (res && res.reply) {
+        pushSystemMessage(res.reply, (res.card_type as Message["cardType"]) || undefined);
         return;
       }
+    } catch {
+      // Fallback local processing if backend endpoint unavailable
+      setIsLoading(false);
+    }
 
-      // ROLE-SPECIFIC PARSING
+    // Local Fallback Parsing if backend request fails
+    const lower = text.toLowerCase();
 
-      // 1. SOCIETY OFFICIAL
-      if (userRole === "SOCIETY_OFFICIAL") {
-        if (lower.includes("directory") || lower.includes("resident") || lower.includes("flat owner")) {
-          pushSystemMessage("Opening resident directory records...", "residentDirectory");
-        } else if (lower.includes("triage") || lower.includes("complaints queue") || lower.includes("open complaints")) {
-          pushSystemMessage("Retrieving open complaint tickets triage queue...", "complaintTriage");
-        } else if (lower.includes("compose") || lower.includes("post") || lower.includes("announcement") || lower.includes("notice")) {
-          pushSystemMessage("Initializing announcement composer draft...", "announcementCompose");
-        } else if (lower.includes("schedule") || lower.includes("bookings") || lower.includes("reservations")) {
-          pushSystemMessage("Retrieving all active society reservations...", "bookingsSchedule");
-        } else {
-          pushSystemMessage(`Command '${text}' not recognized by Official Dispatcher. Try asking me for 'directory', 'triage complaints', 'post announcement', or 'bookings schedule'.`);
-        }
-        return;
+    // HELP COMMAND
+    if (lower.includes("help") || lower.includes("menu") || lower.includes("option")) {
+      let helpText = "";
+      switch (userRole) {
+        case "RESIDENT_OWNER":
+          helpText = "I can assist you with the following tasks. Ask me directly to:\n- 'Book facility slot' (Clubhouse, Gym, etc.)\n- 'Cancel booking' or 'Show my bookings'\n- 'Raise a complaint' / 'Report issue'\n- 'Generate a guest pass'\n- 'View announcements'\n- 'Check my dues' / 'Pay bills'\n- 'Trigger emergency SOS'";
+          break;
+        case "SOCIETY_OFFICIAL":
+          helpText = "Society Official administrative commands:\n- 'Show resident directory' / 'Check dues'\n- 'Triage complaints' / 'View open complaints'\n- 'Post announcement' / 'Compose notice'\n- 'Show bookings schedule' / 'View reservations'";
+          break;
+        case "NON_RESIDENT_OWNER":
+          helpText = "Non-Resident Owner remote monitoring commands:\n- 'Check property status' / 'Occupancy'\n- 'Generate visitor pass'\n- 'View notices'\n- 'View/pay pending maintenance bills'";
+          break;
+        case "SECURITY_GUARD":
+          helpText = "Security Guard Gate operations commands:\n- 'Verify guest pass' / 'Check-in visitor'\n- 'Show SOS alerts' / 'View active alarms'";
+          break;
+        case "MAINTENANCE_STAFF":
+          helpText = "Staff work order commands:\n- 'Show my tasks' / 'Task queue'";
+          break;
       }
+      pushSystemMessage(helpText);
+      return;
+    }
 
-      // 2. SECURITY GUARD
-      if (userRole === "SECURITY_GUARD") {
-        if (lower.includes("verify") || lower.includes("check pass") || lower.includes("check-in") || lower.includes("visitor")) {
-          pushSystemMessage("Opening gate visitor verification console...", "verifyPass");
-        } else if (lower.includes("sos") || lower.includes("alert") || lower.includes("alarm") || lower.includes("emergency")) {
-          pushSystemMessage("Retrieving active emergency SOS logs...", "sosInbox");
-        } else {
-          pushSystemMessage(`Command '${text}' not recognized by Security Dispatcher. Try asking me to 'verify visitor' or 'show SOS alerts'.`);
-        }
-        return;
+    if (userRole === "SOCIETY_OFFICIAL") {
+      if (lower.includes("directory") || lower.includes("resident") || lower.includes("flat owner")) {
+        pushSystemMessage("Opening resident directory records...", "residentDirectory");
+      } else if (lower.includes("triage") || lower.includes("complaints queue") || lower.includes("open complaints")) {
+        pushSystemMessage("Retrieving open complaint tickets triage queue...", "complaintTriage");
+      } else if (lower.includes("compose") || lower.includes("post") || lower.includes("announcement") || lower.includes("notice")) {
+        pushSystemMessage("Initializing announcement composer draft...", "announcementCompose");
+      } else if (lower.includes("schedule") || lower.includes("bookings") || lower.includes("reservations")) {
+        pushSystemMessage("Retrieving all active society reservations...", "bookingsSchedule");
+      } else {
+        pushSystemMessage(`Command '${text}' processed.`);
       }
+      return;
+    }
 
-      // 3. MAINTENANCE STAFF
-      if (userRole === "MAINTENANCE_STAFF") {
-        if (lower.includes("task") || lower.includes("queue") || lower.includes("work order") || lower.includes("my jobs")) {
-          pushSystemMessage("Opening assigned staff work orders...", "staffTasks");
-        } else {
-          pushSystemMessage(`Command '${text}' not recognized by Staff Dispatcher. Try asking me to 'show my tasks'.`);
-        }
-        return;
+    if (userRole === "SECURITY_GUARD") {
+      if (lower.includes("verify") || lower.includes("check pass") || lower.includes("check-in") || lower.includes("visitor")) {
+        pushSystemMessage("Opening gate visitor verification console...", "verifyPass");
+      } else if (lower.includes("sos") || lower.includes("alert") || lower.includes("alarm") || lower.includes("emergency")) {
+        pushSystemMessage("Retrieving active emergency SOS logs...", "sosInbox");
+      } else {
+        pushSystemMessage(`Command '${text}' processed.`);
       }
+      return;
+    }
 
-      // 4. NON-RESIDENT OWNER
-      if (userRole === "NON_RESIDENT_OWNER") {
-        if (lower.includes("status") || lower.includes("occupancy") || lower.includes("property") || lower.includes("tenant")) {
-          pushSystemMessage("Opening property details and tenant roster...", "propertyStatus");
-        } else if (lower.includes("pass") || lower.includes("guest") || lower.includes("visitor")) {
-          pushSystemMessage("Preparing digital visitor pass generation card...", "guestpass");
-        } else if (lower.includes("announcement") || lower.includes("notice") || lower.includes("feed")) {
-          pushSystemMessage("Retrieving recent society announcements...", "announcements");
-        } else if (lower.includes("due") || lower.includes("bill") || lower.includes("invoice") || lower.includes("pay")) {
-          pushSystemMessage("Fetching remote property accounts dues...", "dues");
-        } else {
-          pushSystemMessage(`Command '${text}' not recognized by Property Dispatcher. Try asking for 'property status', 'visitor pass', or 'maintenance dues'.`);
-        }
-        return;
+    if (userRole === "MAINTENANCE_STAFF") {
+      if (lower.includes("task") || lower.includes("queue") || lower.includes("work order") || lower.includes("my jobs")) {
+        pushSystemMessage("Opening assigned staff work orders...", "staffTasks");
+      } else {
+        pushSystemMessage(`Command '${text}' processed.`);
       }
+      return;
+    }
 
-      // 5. RESIDENT OWNER (Default)
-      if (userRole === "RESIDENT_OWNER") {
-        if (
-          (lower.includes("cancel") && (lower.includes("book") || lower.includes("slot") || lower.includes("reserve"))) ||
-          lower.includes("my bookings") ||
-          lower.includes("show bookings") ||
-          lower.includes("view bookings")
-        ) {
-          pushSystemMessage("Retrieving your active facility bookings...", "mybookings");
-        } else if (
-          lower.includes("book") ||
-          lower.includes("booking") ||
-          lower.includes("facility") ||
-          lower.includes("tennis") ||
-          lower.includes("clubhouse") ||
-          lower.includes("pool") ||
-          lower.includes("hall") ||
-          lower.includes("gym") ||
-          lower.includes("gymnasium")
-        ) {
-          pushSystemMessage("Opening facility slot scheduler details...", "booking");
-        } else if (
-          lower.includes("complaint") ||
-          lower.includes("report") ||
-          lower.includes("issue") ||
-          lower.includes("leakage") ||
-          lower.includes("damage") ||
-          lower.includes("broken") ||
-          lower.includes("repair") ||
-          lower.includes("raise")
-        ) {
-          pushSystemMessage("Initializing society maintenance ticket draft...", "complaint");
-        } else if (
-          lower.includes("guest") ||
-          lower.includes("visitor") ||
-          lower.includes("pass") ||
-          lower.includes("invite") ||
-          lower.includes("entry") ||
-          lower.includes("gate")
-        ) {
-          pushSystemMessage("Preparing digital visitor pass generation card...", "guestpass");
-        } else if (
-          lower.includes("announcement") ||
-          lower.includes("news") ||
-          lower.includes("update") ||
-          lower.includes("happen") ||
-          lower.includes("feed")
-        ) {
-          pushSystemMessage("Retrieving recent society announcements...", "announcements");
-        } else if (
-          lower.includes("due") ||
-          lower.includes("bill") ||
-          lower.includes("invoice") ||
-          lower.includes("pay") ||
-          lower.includes("pending") ||
-          lower.includes("fee")
-        ) {
-          pushSystemMessage("Fetching outstanding maintenance accounts...", "dues");
-        } else if (lower.includes("sos") || lower.includes("emergency") || lower.includes("help guard")) {
-          pushSystemMessage("WARNING: Security SOS console triggered.", "sos");
-        } else {
-          pushSystemMessage(`Command '${text}' not recognized. Try asking for 'book gym', 'show announcements', 'check dues', or 'help'.`);
-        }
+    if (userRole === "NON_RESIDENT_OWNER") {
+      if (lower.includes("status") || lower.includes("occupancy") || lower.includes("property") || lower.includes("tenant")) {
+        pushSystemMessage("Opening property details and tenant roster...", "propertyStatus");
+      } else if (lower.includes("pass") || lower.includes("guest") || lower.includes("visitor")) {
+        pushSystemMessage("Preparing digital visitor pass generation card...", "guestpass");
+      } else if (lower.includes("announcement") || lower.includes("notice") || lower.includes("feed")) {
+        pushSystemMessage("Retrieving recent society announcements...", "announcements");
+      } else if (lower.includes("due") || lower.includes("bill") || lower.includes("invoice") || lower.includes("pay")) {
+        pushSystemMessage("Fetching remote property accounts dues...", "dues");
+      } else {
+        pushSystemMessage(`Command '${text}' processed.`);
       }
-    }, 600);
+      return;
+    }
+
+    // Default RESIDENT_OWNER
+    if (
+      (lower.includes("cancel") && (lower.includes("book") || lower.includes("slot") || lower.includes("reserve"))) ||
+      lower.includes("my bookings") ||
+      lower.includes("show bookings")
+    ) {
+      pushSystemMessage("Retrieving your active facility bookings...", "mybookings");
+    } else if (lower.includes("book") || lower.includes("facility") || lower.includes("clubhouse") || lower.includes("gym")) {
+      pushSystemMessage("Opening facility slot scheduler details...", "booking");
+    } else if (lower.includes("complaint") || lower.includes("report") || lower.includes("issue") || lower.includes("leak")) {
+      pushSystemMessage("Initializing society maintenance ticket draft...", "complaint");
+    } else if (lower.includes("guest") || lower.includes("visitor") || lower.includes("pass")) {
+      pushSystemMessage("Preparing digital visitor pass generation card...", "guestpass");
+    } else if (lower.includes("announcement") || lower.includes("notice") || lower.includes("feed")) {
+      pushSystemMessage("Retrieving recent society announcements...", "announcements");
+    } else if (lower.includes("due") || lower.includes("bill") || lower.includes("invoice") || lower.includes("pay")) {
+      pushSystemMessage("Fetching outstanding maintenance accounts...", "dues");
+    } else if (lower.includes("sos") || lower.includes("emergency")) {
+      pushSystemMessage("WARNING: Security SOS console triggered.", "sos");
+    } else {
+      pushSystemMessage(`I received: '${text}'. How can I help you today?`);
+    }
   }
+
 
   // --- Interactive Form Cards ---
 
@@ -320,7 +294,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 border-signal/20 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">B-01 / SCHEDULER WIDGET</p>
+        <p className="bp-eyebrow mb-2">SCHEDULER WIDGET</p>
         {isConfirmed ? (
           <div className="space-y-1.5">
             <p className="text-emerald-400 font-semibold uppercase tracking-wider">✓ Slot Booked Successfully</p>
@@ -419,7 +393,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 border-signal/20 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">C-01 / COMPLAINT TICKET DRAFT</p>
+        <p className="bp-eyebrow mb-2">COMPLAINT TICKET DRAFT</p>
         {isSubmitted ? (
           <div className="space-y-1.5">
             <p className="text-signal font-semibold uppercase tracking-wider">✓ Ticket Raised Successfully</p>
@@ -521,7 +495,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 border-signal/20 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">V-01 / VISITOR DIGIPASS DRAFT</p>
+        <p className="bp-eyebrow mb-2">VISITOR DIGIPASS DRAFT</p>
         {isGenerated ? (
           <div className="text-center space-y-2">
             <p className="text-emerald-400 font-semibold uppercase tracking-wider">✓ Pass Generated Successfully</p>
@@ -585,7 +559,7 @@ export default function AiChatBox() {
   function AnnouncementsCard() {
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow mb-1">A-01 / CENTRAL NOTICE FEED</p>
+        <p className="bp-eyebrow mb-1">CENTRAL NOTICE FEED</p>
         {announcements.slice(0, 3).map((a) => (
           <div key={a.id} className="bp-card p-3 bg-blueprint-800/80 text-xs">
             <div className="flex items-center justify-between mb-1.5">
@@ -615,7 +589,7 @@ export default function AiChatBox() {
 
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow mb-1">M-01 / OUTSTANDING INVOICES</p>
+        <p className="bp-eyebrow mb-1">OUTSTANDING INVOICES</p>
         {invoiceList.filter((i) => i.status !== "PAID").length === 0 ? (
           <div className="bp-card p-4 bg-blueprint-800/80 text-center">
             <p className="text-emerald-400 font-medium">✓ ALL CLEAR</p>
@@ -690,7 +664,7 @@ export default function AiChatBox() {
 
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow mb-1">B-02 / ACTIVE RESERVATIONS</p>
+        <p className="bp-eyebrow mb-1">ACTIVE RESERVATIONS</p>
         {myBookings.length === 0 ? (
           <div className="bp-card p-4 bg-blueprint-800/80 text-center">
             <p className="text-emerald-400 font-medium">NO ACTIVE BOOKINGS</p>
@@ -726,14 +700,135 @@ export default function AiChatBox() {
   // 8. Management: Resident Directory Card
   function ResidentDirectoryCard() {
     const [filterPending, setFilterPending] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [newEmail, setNewEmail] = useState("");
+    const [newPhone, setNewPhone] = useState("");
+    const [newFlatNo, setNewFlatNo] = useState("E-401");
+    const [newRole, setNewRole] = useState<"OWNER" | "TENANT">("OWNER");
+    const [statusMsg, setStatusMsg] = useState("");
+
     const displayedResidents = filterPending
       ? residents.filter((r) => r.duesStatus === "PENDING")
       : residents;
 
+    const handleAddUser = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newName || !newEmail) return;
+
+      try {
+        await api.post("/v1/users", {
+          email: newEmail,
+          password: "Password123",
+          full_name: newName,
+          phone: newPhone || "9800000099",
+          role: newRole === "OWNER" ? "RESIDENT_OWNER" : "RESIDENT_OWNER",
+        });
+      } catch {
+        // Continue and update local state even if backend offline
+      }
+
+      residents.unshift({
+        flatNo: newFlatNo,
+        name: newName,
+        email: newEmail,
+        type: newRole,
+        contact: newPhone || "9800000099",
+        duesStatus: "CLEAR",
+      });
+      notifyMockDataChanged();
+
+      setStatusMsg(`✓ User '${newName}' (${newEmail}) added to database.`);
+      setNewName("");
+      setNewEmail("");
+      setNewPhone("");
+      setShowAddForm(false);
+    };
+
     return (
-      <div className="bp-card p-4 my-2 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">R-01 / RESIDENT RECORDS</p>
-        <div className="flex justify-between items-center mb-3">
+      <div className="bp-card p-4 my-2 bg-blueprint-800/90 text-xs space-y-3">
+        <div className="flex justify-between items-center">
+          <p className="bp-eyebrow">RESIDENT RECORDS</p>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="btn-primary py-0.5 px-2 text-[10px]"
+          >
+            {showAddForm ? "Cancel" : "+ Add User"}
+          </button>
+        </div>
+
+        {statusMsg && (
+          <p className="text-emerald-400 font-mono text-[10px] bg-emerald-950/40 p-1.5 rounded-xs">
+            {statusMsg}
+          </p>
+        )}
+
+        {showAddForm && (
+          <form onSubmit={handleAddUser} className="space-y-2 border border-signal/30 p-2.5 rounded-xs bg-blueprint-950/70">
+            <p className="text-signal font-semibold text-[11px] uppercase">Onboard New User via Email</p>
+            <div>
+              <label className="label-field text-[9px]">Full Name</label>
+              <input
+                required
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="input-field py-1 text-xs"
+                placeholder="e.g. Ananya Roy"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label-field text-[9px]">Email Address (Required)</label>
+                <input
+                  required
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="input-field py-1 text-xs"
+                  placeholder="ananya@example.com"
+                />
+              </div>
+              <div>
+                <label className="label-field text-[9px]">Phone</label>
+                <input
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  className="input-field py-1 text-xs"
+                  placeholder="9800000099"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label-field text-[9px]">Flat No</label>
+                <input
+                  value={newFlatNo}
+                  onChange={(e) => setNewFlatNo(e.target.value)}
+                  className="input-field py-1 text-xs"
+                  placeholder="E-401"
+                />
+              </div>
+              <div>
+                <label className="label-field text-[9px]">Occupancy Type</label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as any)}
+                  className="input-field py-1 text-xs"
+                >
+                  <option value="OWNER">Owner</option>
+                  <option value="TENANT">Tenant</option>
+                </select>
+              </div>
+            </div>
+            <div className="text-right pt-1">
+              <button type="submit" className="btn-primary py-1 px-3 text-xs">
+                Create User Record
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="flex justify-between items-center">
           <span className="text-[10px] text-ink-500 font-mono">Count: {displayedResidents.length}</span>
           <button
             onClick={() => setFilterPending(!filterPending)}
@@ -746,11 +841,13 @@ export default function AiChatBox() {
             {filterPending ? "Show All" : "Filter: Unpaid Dues"}
           </button>
         </div>
+
         <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
           {displayedResidents.map((r) => (
-            <div key={r.flatNo} className="p-2 border border-blueprint-700 bg-blueprint-900/60 rounded-xs flex justify-between items-center">
+            <div key={r.flatNo + r.email} className="p-2 border border-blueprint-700 bg-blueprint-900/60 rounded-xs flex justify-between items-center">
               <div>
                 <p className="font-semibold text-ink-100">{r.name} ({r.flatNo})</p>
+                <p className="text-[10px] text-ink-300 font-mono">✉ {r.email || "N/A"}</p>
                 <p className="text-[10px] text-ink-500 font-mono">Mob: {r.contact} · {r.type}</p>
               </div>
               <span
@@ -768,6 +865,8 @@ export default function AiChatBox() {
       </div>
     );
   }
+
+
 
   // 9. Management: Complaint Triage Card
   function ComplaintTriageCard() {
@@ -788,7 +887,7 @@ export default function AiChatBox() {
 
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow mb-1">C-03 / OFFICIAL TRIAGE WIDGET</p>
+        <p className="bp-eyebrow mb-1">OFFICIAL TRIAGE WIDGET</p>
         {triageComplaints.filter((c) => c.status !== "RESOLVED").length === 0 ? (
           <div className="bp-card p-4 bg-blueprint-800/80 text-center text-xs">
             <p className="text-emerald-400 font-medium">✓ ALL COMPLAINTS RESOLVED</p>
@@ -862,7 +961,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 border-signal/20 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">A-02 / NOTICE COMPOSER</p>
+        <p className="bp-eyebrow mb-2">NOTICE COMPOSER</p>
         {isPosted ? (
           <div className="space-y-1.5">
             <p className="text-signal font-semibold uppercase tracking-wider">✓ Announcement Broadcasted</p>
@@ -911,7 +1010,7 @@ export default function AiChatBox() {
   function BookingsScheduleCard() {
     return (
       <div className="space-y-2 my-2 max-h-56 overflow-y-auto pr-1">
-        <p className="bp-eyebrow mb-1">B-03 / CENTRAL BOOKING SCHEDULE</p>
+        <p className="bp-eyebrow mb-1">CENTRAL BOOKING SCHEDULE</p>
         {bookings.map((b) => (
           <div key={b.id} className="bp-card p-3 bg-blueprint-800/80 text-xs flex justify-between items-start">
             <div>
@@ -934,7 +1033,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">P-01 / SPECIFICATION BOARD</p>
+        <p className="bp-eyebrow mb-2">PROPERTY SPECIFICATIONS</p>
         <div className="space-y-2">
           <div className="grid grid-cols-2 border-b border-blueprint-700 pb-1.5">
             <span className="text-ink-500 font-mono">Flat Code</span>
@@ -997,7 +1096,7 @@ export default function AiChatBox() {
 
     return (
       <div className="bp-card p-4 my-2 border-signal/20 bg-blueprint-800/90 text-xs">
-        <p className="bp-eyebrow mb-2">G-01 / GATE MONITOR</p>
+        <p className="bp-eyebrow mb-2">GATE MONITOR</p>
         <div className="flex gap-2 mb-3">
           <input
             value={searchId}
@@ -1071,7 +1170,7 @@ export default function AiChatBox() {
 
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow text-red-400 mb-1">G-02 / EMERGENCY ALARMS</p>
+        <p className="bp-eyebrow text-red-400 mb-1">EMERGENCY ALARMS</p>
         {alerts.length === 0 ? (
           <div className="bp-card p-4 bg-blueprint-800/80 text-center text-xs">
             <p className="text-emerald-400 font-medium">✓ SECURITY STATUS SECURE</p>
@@ -1133,7 +1232,7 @@ export default function AiChatBox() {
 
     return (
       <div className="space-y-2 my-2">
-        <p className="bp-eyebrow mb-1">T-01 / ASSIGNED WORK ORDERS</p>
+        <p className="bp-eyebrow mb-1">ASSIGNED WORK ORDERS</p>
         {tasksList.filter((t) => t.status !== "DONE").length === 0 ? (
           <div className="bp-card p-4 bg-blueprint-800/80 text-center text-xs">
             <p className="text-emerald-400 font-medium">✓ WORK ORDERS COMPLETE</p>

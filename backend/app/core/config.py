@@ -63,6 +63,10 @@ class Settings:
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "dummy_secret")
     RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "dummy_webhook_secret")
 
+    # --- Gemini AI Assistant --------------------------------------------
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
     # --- Misc -----------------------------------------------------------
     CORS_ORIGINS: list[str] = [
         o.strip()

@@ -34,31 +34,27 @@ export default function OfficialDashboard() {
       <div className="grid grid-cols-2 gap-6">
         <div className="bp-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="bp-eyebrow">C-03 / COMPLAINT TRIAGE QUEUE</p>
+            <p className="bp-eyebrow">COMPLAINT TRIAGE QUEUE</p>
             <Link to="/official/complaints/triage" className="text-xs text-signal hover:text-signal-soft">
               Open queue
             </Link>
           </div>
-          <ul className="space-y-3">
-            {complaints.map((c) => (
-              <li
-                key={c.id}
-                onClick={() => setSelectedComplaintId(c.id)}
-                className="flex items-center justify-between text-sm hover:bg-blueprint-700/30 p-1.5 rounded-sm cursor-pointer transition"
-              >
-                <div className="min-w-0 pr-3">
-                  <p className="text-ink-100 truncate font-medium">{c.title}</p>
-                  <p className="text-xs text-ink-500 font-mono mt-0.5">{c.flatNo}</p>
+          <div className="space-y-2 mt-3">
+            {complaints.slice(0, 3).map((c) => (
+              <div key={c.id} onClick={() => setSelectedComplaintId(c.id)} className="p-3 border border-blueprint-700 bg-blueprint-900/50 rounded-xs flex justify-between items-center text-xs font-mono cursor-pointer hover:border-signal/50">
+                <div>
+                  <p className="font-semibold text-ink-100">{c.title}</p>
+                  <p className="text-[10px] text-ink-500">{c.flatNo} · {c.category}</p>
                 </div>
-                <StatusBadge status={c.urgency} />
-              </li>
+                <StatusBadge status={c.status} />
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
         <div className="bp-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="bp-eyebrow">R-01 / RESIDENT DUES</p>
+            <p className="bp-eyebrow">RESIDENT DUES</p>
             <Link to="/official/residents" className="text-xs text-signal hover:text-signal-soft">
               View directory
             </Link>

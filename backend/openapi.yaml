@@ -466,6 +466,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/audit-logs:
+    get:
+      tags:
+      - Society Administration
+      summary: List society audit log history (Society Official)
+      description: Return audit log entries for the caller's society.
+      operationId: list_audit_logs_api_v1_audit_logs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AuditLogResponse'
+                type: array
+                title: Response List Audit Logs Api V1 Audit Logs Get
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - HTTPBearer: []
   /api/v1/maintenance/invoices:
     post:
       tags:
@@ -890,6 +921,165 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/maintenance/invoices/{invoice_id}/remind:
+    post:
+      tags:
+      - Maintenance & Payments
+      summary: Send a payment reminder for an invoice
+      description: Send a payment reminder notification to occupants linked to the invoice flat.
+      operationId: remind_invoice_api_v1_maintenance_invoices__invoice_id__remind_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Invoice Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invoice is already paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/maintenance/invoices/{invoice_id}/offline-payment:
+    post:
+      tags:
+      - Maintenance & Payments
+      summary: Record an offline maintenance payment (Society Official)
+      description: Manually record a cash/cheque/bank-transfer payment and mark the invoice paid.
+      operationId: record_offline_payment_api_v1_maintenance_invoices__invoice_id__offline_payment_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: invoice_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Invoice Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfflinePaymentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invoice is already paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/maintenance/payments/{payment_id}:
+    get:
+      tags:
+      - Maintenance & Payments
+      summary: Get payment details / receipt
+      description: Fetch details/receipt for a single payment.
+      operationId: get_payment_api_v1_maintenance_payments__payment_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: payment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Payment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/complaints:
     post:
       tags:
@@ -1004,6 +1194,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/complaints/summary:
+    get:
+      tags:
+      - Complaints
+      summary: Summary statistics of complaints
+      description: Return aggregated counts of complaints by status and urgency.
+      operationId: complaint_summary_api_v1_complaints_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintSummaryResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - HTTPBearer: []
   /api/v1/complaints/{complaint_id}:
     get:
       tags:
@@ -1173,6 +1391,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/complaints/{complaint_id}/priority:
+    patch:
+      tags:
+      - Complaints
+      summary: Update complaint priority / urgency level
+      description: Reprioritise a complaint (HIGH, MEDIUM, LOW) manually.
+      operationId: update_priority_api_v1_complaints__complaint_id__priority_patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: complaint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Complaint Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplaintPriorityUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Complaint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/facilities:
     get:
       tags:
@@ -1521,6 +1792,112 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/bookings/{booking_id}:
+    get:
+      tags:
+      - Facilities & Bookings
+      summary: Get a booking confirmation details
+      description: Fetch details of a single booking.
+      operationId: get_booking_api_v1_bookings__booking_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: booking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Booking Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/facilities/{facility_id}/slots/{slot_id}:
+    patch:
+      tags:
+      - Facilities & Bookings
+      summary: Update a slot's availability status (Society Official)
+      description: Block or unblock a time slot on the facility schedule.
+      operationId: update_slot_api_v1_facilities__facility_id__slots__slot_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: facility_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Facility Id
+      - name: slot_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Slot Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlotUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Facility or slot not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/visitors/guest-passes:
     post:
       tags:
@@ -1716,6 +2093,53 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Pass is already used or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/visitors/guest-passes/{pass_id}:
+    get:
+      tags:
+      - Visitors & Emergency
+      summary: Get details of a guest pass
+      description: Fetch details of a guest pass. Includes token if caller is creator or official.
+      operationId: get_guest_pass_api_v1_visitors_guest_passes__pass_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: pass_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Pass Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestPassResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Pass not found
           content:
             application/json:
               schema:
@@ -1929,6 +2353,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sos/{incident_id}:
+    get:
+      tags:
+      - Visitors & Emergency
+      summary: Get details of an SOS incident
+      description: Fetch status and details of an SOS incident.
+      operationId: get_sos_api_v1_sos__incident_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: incident_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Incident Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SOSResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Incident not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/announcements:
     get:
       tags:
@@ -2093,6 +2564,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/dashboard/resident:
+    get:
+      tags:
+      - Dashboard
+      summary: Get resident dashboard data
+      description: Aggregate dues, complaints, bookings and notices for the resident dashboard.
+      operationId: resident_dashboard_api_v1_dashboard_resident_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResidentDashboardResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - HTTPBearer: []
+  /api/v1/dashboard/official:
+    get:
+      tags:
+      - Dashboard
+      summary: Get official dashboard metrics
+      description: Aggregate society-wide metrics for the official dashboard.
+      operationId: official_dashboard_api_v1_dashboard_official_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfficialDashboardResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - HTTPBearer: []
+  /api/v1/dashboard/non-resident:
+    get:
+      tags:
+      - Dashboard
+      summary: Get non-resident owner dashboard data
+      description: Aggregate dues, complaints, and notices for non-resident owners.
+      operationId: non_resident_dashboard_api_v1_dashboard_non_resident_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonResidentDashboardResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role is not permitted to perform this action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - HTTPBearer: []
   /health:
     get:
       tags:
@@ -2171,6 +2726,44 @@ components:
       - NON_RESIDENT_OWNERS
       - STAFF
       title: Audience
+    AuditLogResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        actor:
+          type: string
+          title: Actor
+        action:
+          type: string
+          title: Action
+        entity_type:
+          type: string
+          title: Entity Type
+        entity_id:
+          type: string
+          title: Entity Id
+        detail:
+          type: string
+          title: Detail
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - tenant_id
+      - actor
+      - action
+      - entity_type
+      - entity_id
+      - detail
+      - created_at
+      title: AuditLogResponse
     BookingCreate:
       properties:
         slot_id:
@@ -2318,6 +2911,19 @@ components:
       - note
       - changed_at
       title: ComplaintHistoryEntry
+    ComplaintPriorityUpdate:
+      properties:
+        urgency:
+          $ref: '#/components/schemas/UrgencyLevel'
+        note:
+          type: string
+          maxLength: 500
+          title: Note
+          default: ''
+      type: object
+      required:
+      - urgency
+      title: ComplaintPriorityUpdate
     ComplaintResponse:
       properties:
         id:
@@ -2419,6 +3025,35 @@ components:
       required:
       - status
       title: ComplaintStatusUpdate
+    ComplaintSummaryResponse:
+      properties:
+        total_complaints:
+          type: integer
+          title: Total Complaints
+        open_count:
+          type: integer
+          title: Open Count
+        in_progress_count:
+          type: integer
+          title: In Progress Count
+        resolved_count:
+          type: integer
+          title: Resolved Count
+        closed_count:
+          type: integer
+          title: Closed Count
+        high_urgency_count:
+          type: integer
+          title: High Urgency Count
+      type: object
+      required:
+      - total_complaints
+      - open_count
+      - in_progress_count
+      - resolved_count
+      - closed_count
+      - high_urgency_count
+      title: ComplaintSummaryResponse
     ErrorResponse:
       properties:
         statusCode:
@@ -2859,6 +3494,24 @@ components:
       required:
       - message
       title: MessageResponse
+    NonResidentDashboardResponse:
+      properties:
+        pending_invoice:
+          anyOf:
+          - $ref: '#/components/schemas/InvoiceResponse'
+          - type: 'null'
+        open_complaints:
+          items:
+            $ref: '#/components/schemas/ComplaintResponse'
+          type: array
+          title: Open Complaints
+        latest_announcements:
+          items:
+            $ref: '#/components/schemas/AnnouncementResponse'
+          type: array
+          title: Latest Announcements
+      type: object
+      title: NonResidentDashboardResponse
     NotificationResponse:
       properties:
         id:
@@ -2907,6 +3560,51 @@ components:
       - RENTED
       - VACANT
       title: OccupancyType
+    OfficialDashboardResponse:
+      properties:
+        open_complaints_count:
+          type: integer
+          title: Open Complaints Count
+        overdue_invoices_count:
+          type: integer
+          title: Overdue Invoices Count
+        pending_dues_residents_count:
+          type: integer
+          title: Pending Dues Residents Count
+        active_bookings_count:
+          type: integer
+          title: Active Bookings Count
+        active_sos_count:
+          type: integer
+          title: Active Sos Count
+        total_flats:
+          type: integer
+          title: Total Flats
+      type: object
+      required:
+      - open_complaints_count
+      - overdue_invoices_count
+      - pending_dues_residents_count
+      - active_bookings_count
+      - active_sos_count
+      - total_flats
+      title: OfficialDashboardResponse
+    OfflinePaymentRequest:
+      properties:
+        method:
+          type: string
+          maxLength: 32
+          title: Method
+          description: 'Payment method: CASH, CHEQUE, BANK_TRANSFER, etc.'
+          default: CASH
+        reference_note:
+          type: string
+          maxLength: 300
+          title: Reference Note
+          description: Receipt or reference number
+          default: ''
+      type: object
+      title: OfflinePaymentRequest
     PaymentConfirmRequest:
       properties:
         razorpay_order_id:
@@ -3058,6 +3756,29 @@ components:
       - OWNER
       - RESIDENT_TENANT
       title: Relation
+    ResidentDashboardResponse:
+      properties:
+        pending_invoice:
+          anyOf:
+          - $ref: '#/components/schemas/InvoiceResponse'
+          - type: 'null'
+        open_complaints:
+          items:
+            $ref: '#/components/schemas/ComplaintResponse'
+          type: array
+          title: Open Complaints
+        upcoming_bookings:
+          items:
+            $ref: '#/components/schemas/BookingResponse'
+          type: array
+          title: Upcoming Bookings
+        latest_announcements:
+          items:
+            $ref: '#/components/schemas/AnnouncementResponse'
+          type: array
+          title: Latest Announcements
+      type: object
+      title: ResidentDashboardResponse
     RiskScoreResponse:
       properties:
         flat_id:
@@ -3234,6 +3955,15 @@ components:
       - is_bookable
       - is_available
       title: SlotResponse
+    SlotUpdate:
+      properties:
+        is_bookable:
+          type: boolean
+          title: Is Bookable
+      type: object
+      required:
+      - is_bookable
+      title: SlotUpdate
     TenantCreate:
       properties:
         name:
@@ -3384,6 +4114,8 @@ tags:
   description: Single-use guest passes and the SOS alert flow.
 - name: Announcements & Notifications
   description: Society notices and the in-app notification feed.
+- name: Dashboard
+  description: Aggregated dashboard views for residents, officials, and non-resident owners.
 x-user-story-mapping:
 - epic: E1 — Maintenance Management
   stories:
@@ -3392,18 +4124,21 @@ x-user-story-mapping:
     endpoints:
     - GET /api/v1/maintenance/invoices
     - GET /api/v1/maintenance/invoices/{invoice_id}
+    - GET /api/v1/maintenance/payments/{payment_id}
   - id: US-1.2
     story: As a resident, I want to pay my maintenance online so that I do not have to visit the society
       office.
     endpoints:
     - POST /api/v1/maintenance/invoices/{invoice_id}/pay
     - POST /api/v1/maintenance/invoices/{invoice_id}/payments/confirm
+    - POST /api/v1/maintenance/invoices/{invoice_id}/remind
     - GET /api/v1/maintenance/payments
   - id: US-1.3
     story: As a society official, I want to raise monthly invoices and track collection so that dues are
       transparent and auditable.
     endpoints:
     - POST /api/v1/maintenance/invoices
+    - POST /api/v1/maintenance/invoices/{invoice_id}/offline-payment
     - GET /api/v1/maintenance/summary
   - id: US-1.4
     story: As a society official, I want to know which flats are likely to pay late so that I can send
@@ -3421,6 +4156,7 @@ x-user-story-mapping:
     story: As a resident, I want to track my complaint's progress so that I know it has not been forgotten.
     endpoints:
     - GET /api/v1/complaints
+    - GET /api/v1/complaints/summary
     - GET /api/v1/complaints/{complaint_id}
   - id: US-2.3
     story: As a society official, I want complaints categorised and prioritised automatically so that
@@ -3428,6 +4164,7 @@ x-user-story-mapping:
     endpoints:
     - POST /api/v1/complaints
     - GET /api/v1/complaints
+    - PATCH /api/v1/complaints/{complaint_id}/priority
   - id: US-2.4
     story: As a society official, I want to assign complaints to staff and record each status change so
       that responsibility is clear.
@@ -3442,6 +4179,7 @@ x-user-story-mapping:
     endpoints:
     - GET /api/v1/facilities
     - GET /api/v1/facilities/{facility_id}/slots
+    - GET /api/v1/bookings/{booking_id}
   - id: US-3.2
     story: As a resident, I want to book a slot without clashing with anyone else so that double-bookings
       stop happening.
@@ -3458,6 +4196,7 @@ x-user-story-mapping:
     endpoints:
     - POST /api/v1/facilities
     - POST /api/v1/facilities/{facility_id}/slots
+    - PATCH /api/v1/facilities/{facility_id}/slots/{slot_id}
 - epic: E4 — Visitor & Emergency Management
   stories:
   - id: US-4.1
@@ -3466,6 +4205,7 @@ x-user-story-mapping:
     endpoints:
     - POST /api/v1/visitors/guest-passes
     - GET /api/v1/visitors/guest-passes
+    - GET /api/v1/visitors/guest-passes/{pass_id}
   - id: US-4.2
     story: As a security guard, I want to verify a pass by scanning it so that only expected visitors
       enter and no pass can be reused.
@@ -3480,6 +4220,7 @@ x-user-story-mapping:
     endpoints:
     - POST /api/v1/sos
     - GET /api/v1/sos
+    - GET /api/v1/sos/{incident_id}
   - id: US-4.5
     story: As a security guard, I want to acknowledge and close an SOS so that the resident knows someone
       is responding.
@@ -3497,6 +4238,7 @@ x-user-story-mapping:
     - POST /api/v1/auth/refresh
     - POST /api/v1/auth/logout
     - GET /api/v1/auth/me
+    - GET /api/v1/dashboard/resident
   - id: US-5.2
     story: As a society official, I want to manage flats and residents so that society records stay accurate.
     endpoints:
@@ -3504,6 +4246,8 @@ x-user-story-mapping:
     - GET /api/v1/flats
     - POST /api/v1/flats/{flat_id}/occupants
     - GET /api/v1/users
+    - GET /api/v1/dashboard/official
+    - GET /api/v1/audit-logs
   - id: US-5.3
     story: As a society official, I want to post announcements so that residents are informed through
       the platform.
@@ -3524,6 +4268,7 @@ x-user-story-mapping:
     endpoints:
     - GET /api/v1/maintenance/invoices
     - GET /api/v1/complaints
+    - GET /api/v1/dashboard/non-resident
   - id: US-6.2
     story: As a non-resident owner, I want to follow society notices so that I do not miss decisions affecting
       my flat.

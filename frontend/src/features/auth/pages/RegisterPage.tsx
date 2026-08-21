@@ -58,7 +58,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="bp-card px-8 py-8">
-          <p className="bp-eyebrow mb-2">D-02 / REGISTER</p>
+          <p className="bp-eyebrow mb-2">REGISTER</p>
           <h2 className="text-2xl font-semibold mb-1">Create your account</h2>
           <p className="text-sm text-ink-300 mb-6">
             For residential and non-residential flat owners.

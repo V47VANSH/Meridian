@@ -39,19 +39,22 @@ export default function ResidentDashboard() {
       <div className="grid grid-cols-2 gap-6 mb-8">
         <div className="bp-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="bp-eyebrow">C-02 / RECENT COMPLAINTS</p>
+            <p className="bp-eyebrow">RECENT COMPLAINTS</p>
             <Link to="/resident/complaints" className="text-xs text-signal hover:text-signal-soft">
               View all
             </Link>
           </div>
-          <ul className="space-y-3">
+          <div className="space-y-2">
             {complaints.slice(0, 3).map((c) => (
-              <li key={c.id} className="flex items-center justify-between text-sm">
-                <span className="text-ink-100 truncate pr-3">{c.title}</span>
+              <div key={c.id} className="p-3 border border-blueprint-700 bg-blueprint-900/50 rounded-xs flex justify-between items-center text-xs font-mono">
+                <div>
+                  <p className="font-semibold text-ink-100">{c.title}</p>
+                  <p className="text-[10px] text-ink-500">{c.id} · {c.category}</p>
+                </div>
                 <StatusBadge status={c.status} />
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
         <div
@@ -60,7 +63,7 @@ export default function ResidentDashboard() {
         >
           <div>
             <div className="flex items-center justify-between mb-4" onClick={(e) => e.stopPropagation()}>
-              <p className="bp-eyebrow">A-01 / LATEST ANNOUNCEMENT</p>
+              <p className="bp-eyebrow">LATEST ANNOUNCEMENT</p>
               <Link to="/resident/announcements" className="text-xs text-signal hover:text-signal-soft">
                 View all
               </Link>

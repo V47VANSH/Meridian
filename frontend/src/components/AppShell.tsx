@@ -47,14 +47,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-sm px-3 py-2 text-sm transition ${
+                `flex items-center gap-3 rounded-sm px-3.5 py-2 text-sm font-medium transition ${
                   isActive
-                    ? "bg-blueprint-700/70 text-signal"
+                    ? "bg-blueprint-700/70 text-signal font-semibold"
                     : "text-ink-300 hover:bg-blueprint-800 hover:text-ink-100"
                 }`
               }
             >
-              <span className="font-mono text-[10px] text-ink-500 w-8 shrink-0">{item.code}</span>
               {item.label}
             </NavLink>
           ))}

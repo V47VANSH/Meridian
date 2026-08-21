@@ -68,10 +68,15 @@ export default function LoginPage() {
           <span className="font-display text-lg font-semibold">Meridian</span>
         </div>
         <div>
-          <p className="bp-eyebrow mb-3">D-00 / SOCIETY OPERATING SYSTEM</p>
-          <h1 className="font-display text-4xl font-semibold leading-tight max-w-md">
-            One structure for every resident, official, and gate.
-          </h1>
+          <p className="bp-eyebrow mb-3">SOCIETY OPERATING SYSTEM</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Meridian</h1>
+          <p className="mt-1 text-xs text-ink-300">
+            Select a demo account persona to launch into the dashboard.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <p className="bp-eyebrow mb-2">SIGN IN</p>
           <p className="mt-4 text-sm text-ink-300 max-w-sm">
             Maintenance, complaints, bookings, visitor passes, and emergency alerts —
             drafted into a single, transparent plan.
@@ -83,7 +88,7 @@ export default function LoginPage() {
       {/* Right: form panel */}
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <p className="bp-eyebrow mb-2">D-01 / SIGN IN</p>
+          <p className="bp-eyebrow mb-2">SIGN IN</p>
           <h2 className="text-2xl font-semibold mb-1">Welcome back</h2>
           <p className="text-sm text-ink-300 mb-8">Sign in to continue to your dashboard.</p>
 

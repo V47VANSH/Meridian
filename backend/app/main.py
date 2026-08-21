@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-from app.api.v1 import announcements, auth, bookings, complaints, dashboard, maintenance, tenants, visitors
+from app.api.v1 import ai, announcements, auth, bookings, complaints, dashboard, maintenance, tenants, visitors
 from app.core.config import settings
 from app.core.errors import (
     APIError,
@@ -81,6 +81,10 @@ TAGS_METADATA = [
         "name": "Dashboard",
         "description": "Aggregated dashboard views for residents, officials, and non-resident owners.",
     },
+    {
+        "name": "AI Assistant",
+        "description": "Natural language query processing with Gemini API.",
+    },
 ]
 
 
@@ -128,6 +132,8 @@ def create_app() -> FastAPI:
     app.include_router(visitors.router, prefix=prefix)
     app.include_router(announcements.router, prefix=prefix)
     app.include_router(dashboard.router, prefix=prefix)
+    app.include_router(ai.router, prefix=prefix)
+
 
     @app.get("/health", tags=["Auth"], summary="Liveness probe")
     def health() -> dict:

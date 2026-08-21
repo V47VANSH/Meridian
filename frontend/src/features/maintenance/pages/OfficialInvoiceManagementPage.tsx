@@ -92,7 +92,7 @@ export default function OfficialInvoiceManagementPage() {
         )}
       </div>
 
-      <p className="bp-eyebrow mb-3">R-01 / RESIDENTS WITH PENDING DUES</p>
+      <p className="bp-eyebrow mb-3">RESIDENTS WITH PENDING DUES</p>
       <div className="bp-card divide-y divide-blueprint-700">
         {residents.filter((r) => r.duesStatus === "PENDING").map((r) => (
           <div key={r.flatNo} className="flex items-center justify-between px-5 py-3 text-sm">

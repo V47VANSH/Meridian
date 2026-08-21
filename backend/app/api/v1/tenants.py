@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_roles
 from app.core.errors import ConflictError, NotFoundError
+from app.core.security import hash_password
 from app.db.session import get_db
 from app.models import AuditLog, Flat, FlatOwnership, Role, Tenant, User
 from app.schemas import (
@@ -21,11 +22,13 @@ from app.schemas import (
     MessageResponse,
     TenantCreate,
     TenantResponse,
+    UserCreate,
     UserResponse,
 )
 from app.services import audit
 
 router = APIRouter(tags=["Society Administration"])
+
 
 AUTH_ERRORS = {
     401: {"model": ErrorResponse, "description": "Missing or invalid access token"},
@@ -207,8 +210,72 @@ def assign_occupant(
     return MessageResponse(message=f"{occupant.full_name} linked to {flat.label}")
 
 
+@router.post(
+
+    "/users",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a new user to the society (Society Official)",
+    responses={
+        **AUTH_ERRORS,
+        409: {"model": ErrorResponse, "description": "Email already exists in this society"},
+    },
+)
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_roles(Role.SOCIETY_OFFICIAL, Role.SUPER_ADMIN)),
+    tenant_id: str = Depends(get_tenant_id),
+) -> UserResponse:
+    """Society official registers a new user into the society database."""
+    duplicate = db.scalar(
+        select(User).where(User.tenant_id == tenant_id, User.email == payload.email)
+    )
+    if duplicate is not None:
+        raise ConflictError(
+            f"User with email {payload.email} already exists in this society",
+            error="USER_ALREADY_EXISTS",
+        )
+
+    new_user = User(
+        tenant_id=tenant_id,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        full_name=payload.full_name,
+        phone=payload.phone,
+        role=payload.role.value,
+    )
+    db.add(new_user)
+    db.flush()
+
+    if payload.flat_id:
+        flat = db.get(Flat, payload.flat_id)
+        if flat and flat.tenant_id == tenant_id:
+            db.add(
+                FlatOwnership(
+                    user_id=new_user.id,
+                    flat_id=payload.flat_id,
+                    relation=payload.relation.value,
+                )
+            )
+
+    audit.record(
+        db,
+        tenant_id=tenant_id,
+        actor=user.id,
+        action="USER_CREATED",
+        entity_type="User",
+        entity_id=new_user.id,
+        detail=f"{new_user.email} as {new_user.role}",
+    )
+    db.commit()
+    db.refresh(new_user)
+    return UserResponse.model_validate(new_user)
+
+
 @router.get(
     "/users",
+
     response_model=list[UserResponse],
     summary="List users in the caller's society",
     responses=AUTH_ERRORS,

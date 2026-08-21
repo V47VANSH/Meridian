@@ -208,17 +208,20 @@ export const announcements: Announcement[] = [
 export interface Resident {
   flatNo: string;
   name: string;
+  email: string;
   type: "OWNER" | "TENANT";
   contact: string;
   duesStatus: "CLEAR" | "PENDING";
 }
 
 export const residents: Resident[] = [
-  { flatNo: "A-102", name: "Resident A102", type: "OWNER", contact: "98xxxxxx02", duesStatus: "CLEAR" },
-  { flatNo: "B-304", name: "Resident B304", type: "OWNER", contact: "98xxxxxx04", duesStatus: "PENDING" },
-  { flatNo: "C-101", name: "Resident C101", type: "TENANT", contact: "98xxxxxx01", duesStatus: "CLEAR" },
-  { flatNo: "D-205", name: "Resident D205", type: "OWNER", contact: "98xxxxxx05", duesStatus: "PENDING" },
+  { flatNo: "A-102", name: "Aarav Sharma", email: "aarav@greenvalley.example", type: "OWNER", contact: "9800000010", duesStatus: "CLEAR" },
+  { flatNo: "B-304", name: "Arjun Rao", email: "resident@greenvalley.example", type: "OWNER", contact: "9800000011", duesStatus: "PENDING" },
+  { flatNo: "C-101", name: "Neha Gupta", email: "tenant@greenvalley.example", type: "TENANT", contact: "9800000012", duesStatus: "CLEAR" },
+  { flatNo: "D-205", name: "Rohan Verma", email: "rohan@greenvalley.example", type: "OWNER", contact: "9800000013", duesStatus: "PENDING" },
 ];
+
+
 
 export interface StaffTask {
   id: string;

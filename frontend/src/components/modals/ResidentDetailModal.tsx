@@ -39,18 +39,22 @@ export default function ResidentDetailModal({ resident, onClose }: ResidentDetai
         </div>
 
         {/* Resident Summary Info */}
-        <div className="grid grid-cols-3 gap-3 mb-4 text-xs font-mono">
+        <div className="grid grid-cols-2 gap-3 mb-4 text-xs font-mono">
           <div className="border border-blueprint-700 p-2 rounded-xs bg-blueprint-950/40">
             <span className="text-[9px] uppercase tracking-wider text-ink-500 block mb-0.5">Type</span>
             <span className="text-ink-100 font-semibold">{resident.type}</span>
+          </div>
+          <div className="border border-blueprint-700 p-2 rounded-xs bg-blueprint-950/40">
+            <span className="text-[9px] uppercase tracking-wider text-ink-500 block mb-0.5">Dues status</span>
+            <StatusBadge status={resident.duesStatus} />
           </div>
           <div className="border border-blueprint-700 p-2 rounded-xs bg-blueprint-950/40">
             <span className="text-[9px] uppercase tracking-wider text-ink-500 block mb-0.5">Contact</span>
             <span className="text-ink-100 font-semibold">{resident.contact}</span>
           </div>
           <div className="border border-blueprint-700 p-2 rounded-xs bg-blueprint-950/40">
-            <span className="text-[9px] uppercase tracking-wider text-ink-500 block mb-0.5">Dues status</span>
-            <StatusBadge status={resident.duesStatus} />
+            <span className="text-[9px] uppercase tracking-wider text-ink-500 block mb-0.5">Email</span>
+            <span className="text-ink-100 font-semibold truncate block">{resident.email || "N/A"}</span>
           </div>
         </div>
 

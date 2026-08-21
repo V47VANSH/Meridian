@@ -102,7 +102,7 @@ def test_booking_details_and_slot_management(client: TestClient, society: dict, 
 
     slot = client.post(
         f"/api/v1/facilities/{fac['id']}/slots",
-        json={"date": "2026-08-20", "start_time": "09:00", "end_time": "10:00", "is_bookable": True},
+        json={"date": "2026-09-20", "start_time": "09:00", "end_time": "10:00", "is_bookable": True},
         headers=login("official"),
     ).json()
 
@@ -120,9 +120,10 @@ def test_booking_details_and_slot_management(client: TestClient, society: dict, 
     # PATCH /facilities/{facility_id}/slots/{slot_id}
     slot2 = client.post(
         f"/api/v1/facilities/{fac['id']}/slots",
-        json={"date": "2026-08-20", "start_time": "10:00", "end_time": "11:00", "is_bookable": True},
+        json={"date": "2026-09-20", "start_time": "10:00", "end_time": "11:00", "is_bookable": True},
         headers=login("official"),
     ).json()
+
 
     s_patch = client.patch(
         f"/api/v1/facilities/{fac['id']}/slots/{slot2['id']}",
