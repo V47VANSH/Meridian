@@ -1,14 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
 import StatusBadge from "../../../components/StatusBadge";
-import { invoices, complaints, bookings, announcements, useMockData, Announcement } from "../../../api/mockData";
+import { invoices, complaints, bookings, announcements, useMockData, Announcement, syncComplaintsFromBackend, syncAnnouncementsFromBackend, syncBookingsFromBackend, syncInvoicesFromBackend } from "../../../api/mockData";
+import { useAuthStore } from "../../../store/authStore";
+import { api } from "../../../api/client";
 import AnnouncementDetailModal from "../../../components/modals/AnnouncementDetailModal";
 
 export default function ResidentDashboard() {
   useMockData();
+  const { user } = useAuthStore();
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+
+  useEffect(() => {
+    // Fetch complaints
+    api.get("/v1/complaints")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncComplaintsFromBackend(items, user);
+      })
+      .catch(() => undefined);
+
+    // Fetch announcements
+    api.get("/v1/announcements")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncAnnouncementsFromBackend(items);
+      })
+      .catch(() => undefined);
+
+    // Fetch bookings
+    api.get("/v1/bookings")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncBookingsFromBackend(items, user);
+      })
+      .catch(() => undefined);
+
+    // Fetch invoices
+    api.get("/v1/maintenance/invoices")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncInvoicesFromBackend(items, user);
+      })
+      .catch(() => undefined);
+  }, [user]);
+
 
   const pendingInvoice = invoices.find((i) => i.status !== "PAID");
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");

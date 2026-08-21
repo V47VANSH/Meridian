@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import { complaints, notifyMockDataChanged } from "../../../api/mockData";
 import { useAuthStore } from "../../../store/authStore";
+import { api } from "../../../api/client";
 
 export default function RaiseComplaintPage() {
   const { user } = useAuthStore();
@@ -16,7 +17,16 @@ export default function RaiseComplaintPage() {
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "URGENT">("LOW");
 
-  function handleSubmit(e: FormEvent) {
+  // Map frontend display labels → backend enum values (ComplaintCategory)
+  const categoryToBackend: Record<string, string> = {
+    "Plumbing": "PLUMBING",
+    "Electrical/Mechanical": "ELECTRICAL",
+    "Common Area": "GENERAL",
+    "Security": "SECURITY",
+    "Other": "GENERAL",
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -29,20 +39,38 @@ export default function RaiseComplaintPage() {
       return;
     }
 
+    let complaintId = `CMP-${1043 + complaints.length}`;
+    let backendId: string | undefined;
+    try {
+      const res: any = await api.post("/v1/complaints", {
+        title: title.trim(),
+        description: description.trim(),
+        // Map to backend enum values; fallback to GENERAL if unknown
+        category: categoryToBackend[category] ?? "GENERAL",
+        urgency: urgency === "URGENT" ? "HIGH" : urgency,
+      });
+      // apiFetch returns the parsed JSON body directly — not wrapped in { data: ... }
+      if (res?.id) {
+        complaintId = res.id;
+        backendId = res.id;
+      }
+    } catch {
+      // Gracefully fall back to local store if backend offline
+    }
+
     const now = new Date();
     const dateLabel =
       now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
       ", " +
       now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-    const nextNum = 1043 + complaints.length;
-    const id = `CMP-${nextNum}`;
-
     const newComplaint = {
-      id,
+      id: complaintId,
       title: title.trim(),
       category,
       raisedBy: user?.name || "Resident",
+      // Store the backend UUID so after a page refresh the filter still matches
+      raisedById: backendId ?? (user?.id || undefined),
       flatNo: user?.flatNo || "B-304",
       status: "OPEN" as const,
       urgency,
@@ -53,9 +81,10 @@ export default function RaiseComplaintPage() {
 
     complaints.unshift(newComplaint);
     notifyMockDataChanged();
-    setNewId(id);
+    setNewId(complaintId);
     setSubmitted(true);
-  }
+  };
+
 
   return (
     <div className="max-w-lg">

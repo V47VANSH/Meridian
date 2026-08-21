@@ -372,18 +372,38 @@ export default function AiChatBox() {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [complaintId, setComplaintId] = useState("");
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
       if (!title || !description) return;
-      const newId = `CMP-${Math.floor(1000 + Math.random() * 50)}`;
+      let newId = `CMP-${Math.floor(1000 + Math.random() * 50)}`;
+      let backendId: string | undefined;
+
+      try {
+        const res: any = await api.post("/v1/complaints", {
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          urgency: urgency === "URGENT" ? "HIGH" : urgency,
+        });
+        // apiFetch returns the parsed JSON body directly — not wrapped in { data: ... }
+        if (res?.id) {
+          newId = res.id;
+          backendId = res.id;
+        }
+      } catch {
+        // Fallback to local store if offline
+      }
+
       complaints.unshift({
         id: newId,
         title,
         category,
         raisedBy: user?.name || "Resident",
-        flatNo: user?.flatNo || "N/A",
+        raisedById: backendId ?? (user?.id || undefined),
+        flatNo: user?.flatNo || "B-304",
         status: "OPEN",
         urgency,
         createdAt: new Date().toISOString().split("T")[0],
+        description,
         timeline: [{ label: "Complaint raised via Meridian AI", date: "Just now" }],
       });
       setComplaintId(newId);

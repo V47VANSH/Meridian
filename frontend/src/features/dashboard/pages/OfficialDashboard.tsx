@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
 import StatCard from "../../../components/StatCard";
 import StatusBadge from "../../../components/StatusBadge";
-import { complaints, invoices, residents, bookings, useMockData, Resident } from "../../../api/mockData";
+import { complaints, invoices, residents, bookings, useMockData, Resident, syncComplaintsFromBackend, syncAnnouncementsFromBackend } from "../../../api/mockData";
+import { api } from "../../../api/client";
 import ComplaintDetailModal from "../../../components/modals/ComplaintDetailModal";
 import ResidentDetailModal from "../../../components/modals/ResidentDetailModal";
 
@@ -11,6 +12,25 @@ export default function OfficialDashboard() {
   useMockData();
   const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
+
+  useEffect(() => {
+    api.get("/v1/complaints")
+      .then((res: any) => {
+        // apiFetch returns parsed JSON directly — not wrapped in { data }
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncComplaintsFromBackend(items);
+      })
+      .catch(() => undefined);
+
+    api.get("/v1/announcements")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncAnnouncementsFromBackend(items);
+      })
+      .catch(() => undefined);
+  }, []);
+
+
 
   const openComplaints = complaints.filter((c) => c.status !== "RESOLVED");
   const overdue = invoices.filter((i) => i.status === "OVERDUE");

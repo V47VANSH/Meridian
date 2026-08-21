@@ -22,6 +22,166 @@ export function useMockData() {
   useEffect(() => subscribeToMockData(() => setTick((t) => t + 1)), []);
 }
 
+export function syncComplaintsFromBackend(items: any[], currentUser?: any) {
+  if (!Array.isArray(items)) return;
+  let updated = false;
+
+  items.forEach((item: any) => {
+    const existingIndex = complaints.findIndex((c) => c.id === item.id);
+    // Map backend urgency: HIGH -> URGENT (frontend vocabulary)
+    const urgencyLabel = item.urgency === "HIGH" ? "URGENT" : (item.urgency || "MEDIUM");
+    // Capitalise category label for display
+    const categoryLabel = item.category
+      ? item.category.charAt(0).toUpperCase() + item.category.slice(1).toLowerCase().replace(/_/g, " ")
+      : "General";
+
+    // Prefer existing display name if we already have the complaint locally,
+    // otherwise fall back to the currentUser name or a placeholder.
+    const existingRaisedBy = existingIndex !== -1 ? complaints[existingIndex].raisedBy : undefined;
+
+    const formatted: Complaint = {
+      id: item.id,
+      title: item.title,
+      category: categoryLabel,
+      // Keep the human-readable name if we have it; never overwrite with a UUID
+      raisedBy: existingRaisedBy || currentUser?.name || "Resident",
+      // Always store the backend UUID so ComplaintListPage can filter by ID
+      raisedById: item.raised_by,
+      flatNo: currentUser?.flatNo || (existingIndex !== -1 ? complaints[existingIndex].flatNo : "B-304"),
+      status: (item.status as any) || "OPEN",
+      urgency: urgencyLabel as any,
+      createdAt: item.created_at ? String(item.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      description: item.description || "",
+      timeline: item.history && item.history.length > 0
+        ? item.history.map((h: any) => ({
+            label: h.note ? h.note : `Status changed to ${h.status}`,
+            date: h.changed_at ? String(h.changed_at).slice(0, 10) : (h.created_at ? String(h.created_at).slice(0, 10) : "Today"),
+          }))
+        : [{ label: "Complaint raised", date: item.created_at ? String(item.created_at).slice(0, 10) : "Today" }],
+    };
+
+    if (existingIndex === -1) {
+      complaints.unshift(formatted);
+      updated = true;
+    } else {
+      complaints[existingIndex] = { ...complaints[existingIndex], ...formatted };
+      updated = true;
+    }
+  });
+
+  if (updated) {
+    notifyMockDataChanged();
+  }
+}
+
+export function syncAnnouncementsFromBackend(items: any[]) {
+  if (!Array.isArray(items)) return;
+  let updated = false;
+  items.forEach((item: any) => {
+    const existingIndex = announcements.findIndex((a) => a.id === item.id);
+    const formatted: Announcement = {
+      id: item.id,
+      title: item.title,
+      body: item.body,
+      postedBy: "Society Official",
+      postedAt: item.created_at
+        ? new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : "Today",
+      comments: existingIndex !== -1 ? (announcements[existingIndex].comments ?? []) : [],
+    };
+    if (existingIndex === -1) {
+      announcements.unshift(formatted);
+      updated = true;
+    } else {
+      announcements[existingIndex] = { ...announcements[existingIndex], ...formatted };
+      updated = true;
+    }
+  });
+  if (updated) notifyMockDataChanged();
+}
+
+export function syncGuestPassesFromBackend(items: any[]) {
+  if (!Array.isArray(items)) return;
+  let updated = false;
+  items.forEach((item: any) => {
+    const existingIndex = guestPasses.findIndex((p) => p.id === item.id);
+    const formatted: GuestPass = {
+      id: item.id,
+      guestName: item.visitor_name,
+      purpose: item.purpose || "Visit",
+      validOn: item.valid_from ? String(item.valid_from).slice(0, 10) : "",
+      flatNo: "B-304", // will be resolved from flat_id elsewhere
+      status: item.status === "ACTIVE" ? "ACTIVE" : item.status === "USED" ? "USED" : "EXPIRED",
+    };
+    if (existingIndex === -1) {
+      guestPasses.unshift(formatted);
+      updated = true;
+    } else {
+      guestPasses[existingIndex] = { ...guestPasses[existingIndex], ...formatted };
+      updated = true;
+    }
+  });
+  if (updated) notifyMockDataChanged();
+}
+
+export function syncBookingsFromBackend(items: any[], currentUser?: any) {
+  if (!Array.isArray(items)) return;
+  // Replace all bookings with backend data for the current user
+  const backendIds = new Set(items.map((i: any) => i.id));
+  // Remove bookings that exist in backend set or were added locally without id match
+  const filtered = bookings.filter((b) => !backendIds.has(b.id) && !b.id.startsWith("BK-"));
+  let updated = false;
+  items.forEach((item: any) => {
+    const existingIndex = bookings.findIndex((b) => b.id === item.id);
+    const formatted: Booking = {
+      id: item.id,
+      facility: item.facility_name || "Facility",
+      date: item.date || "",
+      slot: item.start_time && item.end_time ? `${item.start_time}\u2013${item.end_time}` : "",
+      bookedBy: currentUser?.name || "Resident",
+      flatNo: currentUser?.flatNo || "B-304",
+    };
+    if (existingIndex === -1) {
+      bookings.unshift(formatted);
+      updated = true;
+    } else {
+      bookings[existingIndex] = { ...bookings[existingIndex], ...formatted };
+      updated = true;
+    }
+  });
+  if (updated) notifyMockDataChanged();
+}
+
+export function syncInvoicesFromBackend(items: any[], currentUser?: any) {
+  if (!Array.isArray(items)) return;
+  let updated = false;
+  items.forEach((item: any) => {
+    const existingIndex = invoices.findIndex((i) => i.id === item.id);
+    // Map backend period (YYYY-MM) to a display month
+    const periodDate = item.period ? new Date(item.period + "-01") : null;
+    const monthLabel = periodDate
+      ? periodDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+      : item.period || "";
+    const formatted: Invoice = {
+      id: item.id,
+      month: monthLabel,
+      amount: item.amount,
+      status: item.status as "PAID" | "PENDING" | "OVERDUE",
+      dueDate: item.due_date ? String(item.due_date).slice(0, 10) : "",
+      flatNo: currentUser?.flatNo,
+    };
+    if (existingIndex === -1) {
+      invoices.push(formatted);
+      updated = true;
+    } else {
+      invoices[existingIndex] = { ...invoices[existingIndex], ...formatted };
+      updated = true;
+    }
+  });
+  if (updated) notifyMockDataChanged();
+}
+
+
 
 export interface Invoice {
   id: string;
@@ -46,6 +206,8 @@ export interface Complaint {
   title: string;
   category: string;
   raisedBy: string;
+  /** UUID from backend — used to match after page refresh when name is unknown */
+  raisedById?: string;
   flatNo: string;
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED";
   urgency: "LOW" | "MEDIUM" | "URGENT";

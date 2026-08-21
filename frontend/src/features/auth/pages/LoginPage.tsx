@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, setAuthTokens, clearAuth } from "../../../store/authStore";
 import { ROLE_HOME } from "../../../lib/constants";
 import { login as loginRequest, getCurrentUser, toAuthUser } from "../../../api/auth";
-import { ApiError } from "../../../api/client";
+import { ApiError, api } from "../../../api/client";
 import logo from "../../../assets/logo.svg";
 
 /** Accounts created by the backend seeder, shown so the app can be demoed. */
@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [tenantId, setTenantId] = useState("");
   const [showDemoAccounts, setShowDemoAccounts] = useState(false);
   const setSession = useAuthStore((s) => s.setSession);
+  const setUser = useAuthStore((s) => s.setUser);
   const navigate = useNavigate();
 
   const signIn = useMutation({
@@ -39,6 +40,21 @@ export default function LoginPage() {
       try {
         const user = toAuthUser(await getCurrentUser());
         setSession(user, tokens.access_token, tokens.refresh_token);
+
+        // Resolve the user's flat so guest passes, SOS, and complaint
+        // filtering all have flatNo available without extra API calls.
+        try {
+          const flats: any = await api.get("/v1/flats");
+          const flatList: any[] = Array.isArray(flats) ? flats : (flats?.data ?? []);
+          if (flatList.length > 0) {
+            // Pick first flat (residents typically own one flat)
+            const myFlat = flatList[0];
+            setUser({ ...user, flatNo: myFlat.label, flatId: myFlat.id } as any);
+          }
+        } catch {
+          // Non-critical — some roles (guard, staff) may have no linked flat
+        }
+
         return user;
       } catch (error) {
         // Never leave a half-open session behind: the tokens are valid but we

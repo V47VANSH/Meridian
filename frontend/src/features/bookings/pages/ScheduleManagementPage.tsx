@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { facilities, bookings, useMockData, Booking } from "../../../api/mockData";
+import { facilities, bookings, useMockData, Booking, syncBookingsFromBackend } from "../../../api/mockData";
+import { api } from "../../../api/client";
 import BookingDetailModal from "../../../components/modals/BookingDetailModal";
 
 export default function ScheduleManagementPage() {
   useMockData();
   const [searchFlat, setSearchFlat] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  useEffect(() => {
+    // Fetch all bookings (officials get mine=false scope)
+    api.get("/v1/bookings?mine=false")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncBookingsFromBackend(items);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const filteredBookings = bookings.filter((b) => {
     return !searchFlat || b.flatNo.toLowerCase().includes(searchFlat.trim().toLowerCase());

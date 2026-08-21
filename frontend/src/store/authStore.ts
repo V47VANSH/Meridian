@@ -17,8 +17,10 @@ export interface AuthUser {
   email: string;
   role: Role;
   tenantId: string | null;
-  /** Display label such as "B-304". Resolved separately from the flats API. */
+  /** Display label such as "B-304". Resolved from GET /v1/flats after login. */
   flatNo?: string;
+  /** Backend UUID of the user's flat — required for guest pass and SOS creation. */
+  flatId?: string;
 }
 
 interface AuthState {

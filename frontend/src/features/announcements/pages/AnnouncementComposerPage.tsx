@@ -1,7 +1,16 @@
 import { useState } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { announcements, useMockData, notifyMockDataChanged, Announcement } from "../../../api/mockData";
+import { announcements, useMockData, notifyMockDataChanged, Announcement, syncAnnouncementsFromBackend } from "../../../api/mockData";
+import { api } from "../../../api/client";
 import AnnouncementDetailModal from "../../../components/modals/AnnouncementDetailModal";
+
+// Map frontend display labels → backend Audience enum values
+const audienceToBackend: Record<string, string> = {
+  "All residents": "ALL",
+  "Residential owners only": "RESIDENTS",
+  "Non-residential owners only": "NON_RESIDENT_OWNERS",
+  "Staff": "STAFF",
+};
 
 export default function AnnouncementComposerPage() {
   useMockData();
@@ -9,29 +18,63 @@ export default function AnnouncementComposerPage() {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("All residents");
   const [posted, setPosted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !message.trim()) return;
+    setError("");
+    setIsSubmitting(true);
 
-    // Create fresh announcement record
-    const newAnn: Announcement = {
-      id: `ANN-${Math.floor(40 + Math.random() * 60)}`,
-      title: title.trim(),
-      body: `${audience ? `[Target: ${audience}] ` : ""}${message.trim()}`,
-      postedBy: "Society Official",
-      postedAt: new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
-      comments: [],
-    };
+    try {
+      const res: any = await api.post("/v1/announcements", {
+        title: title.trim(),
+        body: message.trim(),
+        audience: audienceToBackend[audience] ?? "ALL",
+      });
 
-    announcements.unshift(newAnn);
-    notifyMockDataChanged();
+      // Sync newly created announcement into the local store
+      if (res?.id) {
+        syncAnnouncementsFromBackend([res]);
+      } else {
+        // Fallback: create local entry if backend didn't respond with data
+        const newAnn: Announcement = {
+          id: `ANN-${Math.floor(40 + Math.random() * 60)}`,
+          title: title.trim(),
+          body: message.trim(),
+          postedBy: "Society Official",
+          postedAt: new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
+          comments: [],
+        };
+        announcements.unshift(newAnn);
+        notifyMockDataChanged();
+      }
+    } catch (err: any) {
+      // If backend unavailable, still add locally
+      const newAnn: Announcement = {
+        id: `ANN-${Math.floor(40 + Math.random() * 60)}`,
+        title: title.trim(),
+        body: message.trim(),
+        postedBy: "Society Official",
+        postedAt: new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
+        comments: [],
+      };
+      announcements.unshift(newAnn);
+      notifyMockDataChanged();
+      // Show error only if it's not a network error (backend might just be offline)
+      if (err?.code && err.code !== "NETWORK_ERROR") {
+        setError(err.message || "Failed to post announcement.");
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
-    // Reset fields
     setTitle("");
     setMessage("");
     setPosted(true);
+    setIsSubmitting(false);
   };
 
   return (
@@ -49,6 +92,11 @@ export default function AnnouncementComposerPage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="label-field">Title</label>
                 <input
@@ -80,10 +128,11 @@ export default function AnnouncementComposerPage() {
                   <option>All residents</option>
                   <option>Residential owners only</option>
                   <option>Non-residential owners only</option>
+                  <option>Staff</option>
                 </select>
               </div>
-              <button type="submit" className="btn-primary w-full">
-                Post Announcement
+              <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Posting…" : "Post Announcement"}
               </button>
             </form>
           )}

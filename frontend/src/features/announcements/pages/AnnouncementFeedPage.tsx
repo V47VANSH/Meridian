@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { announcements, useMockData, Announcement } from "../../../api/mockData";
+import { announcements, useMockData, Announcement, syncAnnouncementsFromBackend } from "../../../api/mockData";
+import { api } from "../../../api/client";
 import AnnouncementDetailModal from "../../../components/modals/AnnouncementDetailModal";
 
 export default function AnnouncementFeedPage() {
   useMockData();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+
+  useEffect(() => {
+    api.get("/v1/announcements")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncAnnouncementsFromBackend(items);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const filtered = announcements.filter(
     (a) =>
@@ -34,7 +44,7 @@ export default function AnnouncementFeedPage() {
       <div className="space-y-4">
         {filtered.length === 0 ? (
           <div className="bp-card p-6 text-center text-ink-500 font-mono">
-            No notices found matching "{searchQuery}".
+            {searchQuery ? `No notices found matching "${searchQuery}".` : "No announcements yet."}
           </div>
         ) : (
           filtered.map((a) => (

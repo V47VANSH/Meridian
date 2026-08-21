@@ -1,16 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
-import { complaints, useMockData } from "../../../api/mockData";
+import { complaints, useMockData, syncComplaintsFromBackend } from "../../../api/mockData";
+import { api } from "../../../api/client";
+import { useAuthStore } from "../../../store/authStore";
 import ComplaintDetailModal from "../../../components/modals/ComplaintDetailModal";
 
 const urgencyRank: Record<string, number> = { URGENT: 0, MEDIUM: 1, LOW: 2 };
 
 export default function ComplaintTriagePage() {
   useMockData();
+  const { user } = useAuthStore();
   const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("ALL");
+
+  useEffect(() => {
+    api.get("/v1/complaints")
+      .then((res: any) => {
+        // apiFetch returns the parsed JSON body directly (not wrapped in { data })
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) {
+          syncComplaintsFromBackend(items, user);
+        }
+      })
+      .catch(() => undefined);
+  }, [user]);
+
+
 
   const filtered = complaints.filter((c) => {
     const matchStatus = statusFilter === "ALL" || c.status === statusFilter;

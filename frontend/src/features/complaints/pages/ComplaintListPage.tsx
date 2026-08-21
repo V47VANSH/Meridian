@@ -1,27 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageHeader from "../../../components/PageHeader";
 import StatusBadge from "../../../components/StatusBadge";
 import EmptyState from "../../../components/EmptyState";
-import { complaints, useMockData } from "../../../api/mockData";
+import { complaints, useMockData, syncComplaintsFromBackend } from "../../../api/mockData";
 import { useAuthStore } from "../../../store/authStore";
+import { api } from "../../../api/client";
 
 export default function ComplaintListPage() {
   useMockData();
   const { user } = useAuthStore();
-
   const [statusFilter, setStatusFilter] = useState("ALL");
 
+  useEffect(() => {
+    api.get("/v1/complaints")
+      .then((res: any) => {
+        // apiFetch returns the parsed JSON body directly (not wrapped in { data })
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) {
+          syncComplaintsFromBackend(items, user);
+        }
+      })
+      .catch(() => undefined);
+  }, [user]);
+
   // Show complaints belonging to the current logged-in user.
-  // We match by raisedBy name (what we stored on submit) so newly raised
-  // complaints appear immediately without needing a flatNo from the API.
+  // After a page refresh the backend returns raised_by as a UUID (raisedById),
+  // so we match by that first, then fall back to name / flatNo.
   const mine = complaints.filter((c) => {
+    if (user?.id && c.raisedById === user.id) return true;
     if (user?.name && c.raisedBy === user.name) return true;
     if (user?.flatNo && c.flatNo === user.flatNo) return true;
-    // Fallback: residents who have no flatNo in the API still see all
-    // complaints attributed to the default flat "B-304".
-    if (!user?.name && !user?.flatNo) return true;
     return false;
   });
+
 
   const displayed = mine.filter(
     (c) => statusFilter === "ALL" || c.status === statusFilter

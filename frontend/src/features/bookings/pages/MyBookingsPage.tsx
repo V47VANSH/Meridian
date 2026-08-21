@@ -1,11 +1,31 @@
+import { useEffect } from "react";
 import PageHeader from "../../../components/PageHeader";
 import EmptyState from "../../../components/EmptyState";
-import { bookings, useMockData, notifyMockDataChanged } from "../../../api/mockData";
+import { bookings, useMockData, notifyMockDataChanged, syncBookingsFromBackend } from "../../../api/mockData";
+import { useAuthStore } from "../../../store/authStore";
+import { api } from "../../../api/client";
 
 export default function MyBookingsPage() {
   useMockData();
+  const { user } = useAuthStore();
 
-  const handleCancel = (id: string) => {
+  useEffect(() => {
+    api.get("/v1/bookings")
+      .then((res: any) => {
+        const items = Array.isArray(res) ? res : res?.data;
+        if (Array.isArray(items)) syncBookingsFromBackend(items, user);
+      })
+      .catch(() => undefined);
+  }, [user]);
+
+  const handleCancel = async (id: string) => {
+    try {
+      // Try backend cancel first
+      await api.post(`/v1/bookings/${id}/cancel`);
+    } catch {
+      // Backend might not have this booking (legacy mock entry); continue with local removal
+    }
+    // Always remove from local store
     const idx = bookings.findIndex((b) => b.id === id);
     if (idx !== -1) {
       bookings.splice(idx, 1);

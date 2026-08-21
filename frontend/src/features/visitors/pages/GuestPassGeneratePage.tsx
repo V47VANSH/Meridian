@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { guestPasses, useMockData, notifyMockDataChanged } from "../../../api/mockData";
+import { guestPasses, useMockData, notifyMockDataChanged, syncGuestPassesFromBackend } from "../../../api/mockData";
 import { useAuthStore } from "../../../store/authStore";
+import { api } from "../../../api/client";
 
 // Deterministic pseudo-QR pattern generated from the pass id — a visual
 // placeholder only. Swap for a real QR lib (e.g. qrcode.react) at integration.
@@ -24,26 +25,89 @@ export default function GuestPassGeneratePage() {
   const { user } = useAuthStore();
   const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [date, setDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
   const [purpose, setPurpose] = useState("Personal visit");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleGenerate(e: FormEvent) {
+  // Fetch user's flat_id from backend (needed for guest pass creation)
+  const [flatId, setFlatId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // flatId is set at login time; fall back to fetching flats if session is old
+    if (user?.flatId) {
+      setFlatId(user.flatId);
+      return;
+    }
+    api.get("/v1/flats")
+      .then((res: any) => {
+        const flats: any[] = Array.isArray(res) ? res : (res?.data ?? []);
+        if (flats.length > 0) {
+          const match = user?.flatNo
+            ? flats.find((f) => f.label === user.flatNo)
+            : null;
+          setFlatId(match?.id ?? flats[0].id);
+        }
+      })
+      .catch(() => undefined);
+  }, [user]);
+
+  async function handleGenerate(e: FormEvent) {
     e.preventDefault();
-    const id = `GP-${2200 + guestPasses.length + 1}`;
-    guestPasses.unshift({
-      id,
-      guestName: name,
-      purpose,
-      validOn: date,
-      flatNo: user?.flatNo || "B-304",
-      status: "ACTIVE",
-    });
-    notifyMockDataChanged();
-    setGeneratedId(id);
+    setError("");
+    setIsSubmitting(true);
+
+    // Build valid_from (start of the selected date) and valid_until (end of day)
+    const validFrom = new Date(`${date}T00:00:00.000Z`).toISOString();
+    const validUntil = new Date(`${date}T23:59:59.000Z`).toISOString();
+
+    let passId: string | null = null;
+
+    if (flatId) {
+      try {
+        const res: any = await api.post("/v1/visitors/guest-passes", {
+          visitor_name: name,
+          visitor_phone: phone,
+          purpose,
+          flat_id: flatId,
+          valid_from: validFrom,
+          valid_until: validUntil,
+        });
+        if (res?.id) {
+          passId = res.id;
+          syncGuestPassesFromBackend([res]);
+        }
+      } catch (err: any) {
+        // Fall back to local mock if backend fails
+        if (err?.code && err.code !== "NETWORK_ERROR") {
+          setError(err.message || "Failed to generate pass.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+    }
+
+    // Fallback: create locally if backend unavailable or flat not resolved
+    if (!passId) {
+      passId = `GP-${2200 + guestPasses.length + 1}`;
+      guestPasses.unshift({
+        id: passId,
+        guestName: name,
+        purpose,
+        validOn: date,
+        flatNo: user?.flatNo || "B-304",
+        status: "ACTIVE",
+      });
+      notifyMockDataChanged();
+    }
+
+    setGeneratedId(passId);
+    setIsSubmitting(false);
   }
 
   const pass = generatedId ? guestPasses.find((p) => p.id === generatedId) : null;
@@ -67,13 +131,18 @@ export default function GuestPassGeneratePage() {
             <p className="text-sm text-ink-300 mb-6">Valid on {pass.validOn} · {pass.purpose}</p>
             <button
               className="btn-secondary"
-              onClick={() => { setGeneratedId(null); setName(""); }}
+              onClick={() => { setGeneratedId(null); setName(""); setPhone(""); }}
             >
               Generate Another
             </button>
           </div>
         ) : (
           <form onSubmit={handleGenerate} className="space-y-5">
+            {error && (
+              <div className="rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+                {error}
+              </div>
+            )}
             <div>
               <label className="label-field">Guest Name</label>
               <input
@@ -82,6 +151,15 @@ export default function GuestPassGeneratePage() {
                 onChange={(e) => setName(e.target.value)}
                 className="input-field"
                 placeholder="Guest full name"
+              />
+            </div>
+            <div>
+              <label className="label-field">Guest Phone (optional)</label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="input-field"
+                placeholder="e.g. 9800001234"
               />
             </div>
             <div>
@@ -103,7 +181,9 @@ export default function GuestPassGeneratePage() {
                 className="input-field"
               />
             </div>
-            <button type="submit" className="btn-primary w-full">Generate Pass</button>
+            <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Generating…" : "Generate Pass"}
+            </button>
           </form>
         )}
       </div>

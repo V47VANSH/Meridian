@@ -18,7 +18,15 @@ export default function ComplaintDetailModal({ complaintId, onClose }: Complaint
 
   const isOfficial = user?.role === "SOCIETY_OFFICIAL";
 
-  const handleUpdateStatus = (newStatus: "IN_PROGRESS" | "RESOLVED" | "OPEN") => {
+  const handleUpdateStatus = async (newStatus: "IN_PROGRESS" | "RESOLVED" | "OPEN") => {
+    try {
+      await api.patch(`/v1/complaints/${complaint.id}/status`, {
+        status: newStatus,
+        note: `Status marked as ${newStatus.replace("_", " ")} by ${user?.name || "Official"}`,
+      });
+    } catch {
+      // Backend may fail or not be reachable, proceed with local update
+    }
     const target = complaints.find((c) => c.id === complaint.id);
     if (target) {
       target.status = newStatus;
@@ -31,7 +39,7 @@ export default function ComplaintDetailModal({ complaintId, onClose }: Complaint
     }
   };
 
-  const handleAssign = (assignee: string) => {
+  const handleAssign = async (assignee: string) => {
     if (!assignee) return;
     const target = complaints.find((c) => c.id === complaint.id);
     if (target) {
