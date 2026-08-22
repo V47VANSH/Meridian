@@ -292,13 +292,14 @@ def create_booking(
         db.add(booking)
         try:
             db.flush()
-        except IntegrityError:
+        except IntegrityError as exc:
             # The partial unique index caught a race the lock did not cover
-            # (for example a second process). Same outcome for the caller.
+            # (for example a second process). Same outcome for the caller; the
+            # cause is kept so the server log shows the database made the call.
             db.rollback()
             raise ConflictError(
                 "This slot has already been booked", error="SLOT_ALREADY_BOOKED"
-            )
+            ) from exc
 
         notifications.notify(
             db,

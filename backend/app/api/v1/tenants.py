@@ -352,5 +352,5 @@ def list_audit_logs(
         .where(AuditLog.tenant_id == tenant_id)
         .order_by(AuditLog.created_at.desc())
     ).all()
-    return [AuditLogResponse.model_validate(l) for l in logs]
+    return [AuditLogResponse.model_validate(entry) for entry in logs]
 

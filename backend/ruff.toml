@@ -1,0 +1,36 @@
+# Lint configuration for the backend (docs/05-devops-architecture.md section 4).
+#
+# Deliberately a small rule set: the errors worth failing a build over are real
+# defects (undefined names, unused imports hiding a dead branch) and import
+# ordering, which otherwise produces noisy diffs when two people touch the same
+# import block.
+
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes — undefined names, unused imports
+    "I",  # import ordering
+    "B",  # flake8-bugbear — likely bugs
+]
+ignore = [
+    # Formatting-only line-length complaints; a long URL in a docstring should
+    # not fail CI.
+    "E501",
+    # `Depends()` and `Query()` in a default argument is the FastAPI idiom this
+    # entire API is written in, not the mutable-default bug the rule targets.
+    "B008",
+]
+
+# `UP` (pyupgrade) is deliberately not selected. Its only findings here are
+# stylistic — `timezone.utc` vs `datetime.UTC` — and turning it on would rewrite
+# every test module without fixing a defect.
+
+[lint.per-file-ignores]
+# Fixtures and star-imports of models are how the mappers get registered.
+"alembic/versions/*" = ["I001"]
+
+[lint.isort]
+known-first-party = ["app"]

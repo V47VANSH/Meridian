@@ -8,8 +8,9 @@ NLP when GEMINI_API_KEY is not configured or network requests fail.
 import json
 import logging
 import re
-import httpx
 from typing import Any
+
+import httpx
 
 from app.core.config import settings
 

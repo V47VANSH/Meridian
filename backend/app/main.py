@@ -13,7 +13,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
-from app.api.v1 import ai, announcements, auth, bookings, complaints, dashboard, maintenance, tenants, visitors
+from app.api.v1 import (
+    ai,
+    announcements,
+    auth,
+    bookings,
+    complaints,
+    dashboard,
+    maintenance,
+    tenants,
+    visitors,
+)
 from app.core.config import settings
 from app.core.errors import (
     APIError,

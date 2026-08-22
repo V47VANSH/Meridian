@@ -42,9 +42,11 @@ def get_current_user(
     try:
         payload = decode_token(credentials.credentials)
     except jwt.ExpiredSignatureError:
-        raise UnauthorizedError("Access token has expired", error="TOKEN_EXPIRED")
+        # `from None` throughout: the JWT library's message describes the token
+        # itself, which is not something to attach to an auth failure.
+        raise UnauthorizedError("Access token has expired", error="TOKEN_EXPIRED") from None
     except jwt.PyJWTError:
-        raise UnauthorizedError("Invalid access token", error="INVALID_TOKEN")
+        raise UnauthorizedError("Invalid access token", error="INVALID_TOKEN") from None
 
     if payload.get("type") != "access":
         # A refresh token must never be accepted as an access token.

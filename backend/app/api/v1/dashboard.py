@@ -27,7 +27,6 @@ from app.models import (
     Facility,
     FacilitySlot,
     Flat,
-    FlatOwnership,
     InvoiceStatus,
     MaintenanceInvoice,
     Role,

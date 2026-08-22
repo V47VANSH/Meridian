@@ -168,7 +168,9 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResp
     try:
         claims = decode_token(payload.refresh_token)
     except Exception:
-        raise UnauthorizedError("Invalid refresh token", error="INVALID_TOKEN")
+        # `from None` on purpose: the decode failure describes the token's
+        # internals, which must not ride along with an auth error.
+        raise UnauthorizedError("Invalid refresh token", error="INVALID_TOKEN") from None
 
     if claims.get("type") != "refresh":
         raise UnauthorizedError("Not a refresh token", error="INVALID_TOKEN")

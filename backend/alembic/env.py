@@ -13,15 +13,15 @@ production) is migrated with `alembic upgrade head`.
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.core.config import settings
-from app.db.session import Base
+from alembic import context
 
 # Importing the models registers every mapper on `Base.metadata`; without it
 # autogenerate would see an empty schema and propose dropping every table.
 from app import models  # noqa: F401
+from app.core.config import settings
+from app.db.session import Base
 
 config = context.config
 

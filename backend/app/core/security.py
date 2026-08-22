@@ -14,6 +14,7 @@ import jwt
 
 from app.core.config import settings
 
+
 def hash_password(password: str) -> str:
     """Return a `pbkdf2_sha256$rounds$salt$hash` encoded digest.
 
