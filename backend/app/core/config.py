@@ -57,6 +57,12 @@ class Settings:
     ML_SHARED_SECRET: str = os.getenv("ML_SHARED_SECRET", "")
     ML_TIMEOUT_SECONDS: float = float(os.getenv("ML_TIMEOUT_SECONDS", "2.0"))
     ML_CONFIDENCE_THRESHOLD: float = float(os.getenv("ML_CONFIDENCE_THRESHOLD", "0.55"))
+    # Risk at or above this triggers the early payment reminder described in
+    # docs/02-backend-architecture.md section 5.6. 0.5 reads as "more likely
+    # than not to pay late"; a flat with no track record scores below it.
+    PAYMENT_RISK_REMINDER_THRESHOLD: float = float(
+        os.getenv("PAYMENT_RISK_REMINDER_THRESHOLD", "0.5")
+    )
 
     # --- Payments -------------------------------------------------------
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "rzp_test_dummy")

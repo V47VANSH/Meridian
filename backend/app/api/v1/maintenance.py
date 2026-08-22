@@ -63,11 +63,48 @@ def _is_official(user: CurrentUser) -> bool:
     return user.role == Role.SOCIETY_OFFICIAL.value
 
 
+def _risk_for_flat(db: Session, *, tenant_id: str, flat_id: str) -> float:
+    """Likelihood this flat pays its next invoice late.
+
+    Features come from the flat's own invoice history. The ML service owns the
+    model in production; `score_payment_risk` is the documented deterministic
+    fallback, so this answers either way.
+    """
+    history = list(
+        db.scalars(
+            select(MaintenanceInvoice).where(
+                MaintenanceInvoice.tenant_id == tenant_id,
+                MaintenanceInvoice.flat_id == flat_id,
+            )
+        )
+    )
+    settled = [i for i in history if i.status == InvoiceStatus.PAID.value]
+    on_time = [i for i in settled if i.paid_at and i.paid_at <= i.due_date]
+    overdue_count = len([i for i in history if i.status == InvoiceStatus.OVERDUE.value])
+
+    return score_payment_risk(
+        # No settled invoice yet means the punctuality of this flat is unknown,
+        # not bad. Passing 0.0 here would have read as "never pays on time" and
+        # made every flat's very first invoice look maximally risky.
+        on_time_ratio=(len(on_time) / len(settled)) if settled else 0.5,
+        overdue_count=overdue_count,
+        months_tracked=len(history),
+    )
+
+
+def _occupants_of(db: Session, flat_id: str) -> list[str]:
+    return list(db.scalars(select(FlatOwnership.user_id).where(FlatOwnership.flat_id == flat_id)))
+
+
 def _refresh_overdue(db: Session, invoices: list[MaintenanceInvoice]) -> None:
     """Flip PENDING invoices past their due date to OVERDUE.
 
     Evaluated on read rather than by a nightly job, so the status is correct
     the moment it is displayed even if a scheduled job missed a run.
+
+    The transition is also the moment the resident should hear about it. Because
+    the status persists as OVERDUE afterwards, the branch is taken exactly once
+    per invoice however many times the list is read.
     """
     now = utcnow().replace(tzinfo=None)
     changed = False
@@ -75,6 +112,14 @@ def _refresh_overdue(db: Session, invoices: list[MaintenanceInvoice]) -> None:
         if invoice.status == InvoiceStatus.PENDING.value and invoice.due_date < now:
             invoice.status = InvoiceStatus.OVERDUE.value
             changed = True
+            notifications.notify_many(
+                db,
+                tenant_id=invoice.tenant_id,
+                user_ids=_occupants_of(db, invoice.flat_id),
+                notification_type=NotificationType.PAYMENT_OVERDUE.value,
+                title=f"Maintenance for {invoice.period} is overdue",
+                body=f"₹{invoice.amount:.2f} was due on {invoice.due_date.date()}.",
+            )
     if changed:
         db.commit()
 
@@ -129,16 +174,37 @@ def create_invoice(
     db.add(invoice)
     db.flush()
 
-    for occupant_id in db.scalars(
-        select(FlatOwnership.user_id).where(FlatOwnership.flat_id == flat.id)
-    ):
-        notifications.notify(
+    occupants = _occupants_of(db, flat.id)
+    notifications.notify_many(
+        db,
+        tenant_id=tenant_id,
+        user_ids=occupants,
+        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        title=f"Maintenance invoice for {payload.period}",
+        body=f"₹{payload.amount:.2f} is due on {payload.due_date.date()}.",
+    )
+
+    # Risk-based early reminder (docs/02 section 5.6). A flat with a history of
+    # paying late gets a second, earlier nudge rather than only the standard
+    # one at the due date. The score is cached per period so the ML service is
+    # not consulted on every page load.
+    risk = _risk_for_flat(db, tenant_id=tenant_id, flat_id=flat.id)
+    db.add(
+        PaymentRiskScore(
+            tenant_id=tenant_id, flat_id=flat.id, period=payload.period, risk_score=risk
+        )
+    )
+    if risk >= settings.PAYMENT_RISK_REMINDER_THRESHOLD:
+        notifications.notify_many(
             db,
             tenant_id=tenant_id,
-            user_id=occupant_id,
+            user_ids=occupants,
             notification_type=NotificationType.PAYMENT_DUE_SOON.value,
-            title=f"Maintenance invoice for {payload.period}",
-            body=f"₹{payload.amount:.2f} is due on {payload.due_date.date()}.",
+            title=f"Early reminder: maintenance for {payload.period}",
+            body=(
+                f"₹{payload.amount:.2f} is due on {payload.due_date.date()}. "
+                "Paying ahead of the due date avoids a late flag on your flat."
+            ),
         )
 
     audit.record(
@@ -334,7 +400,7 @@ def confirm_payment(
         db,
         tenant_id=tenant_id,
         user_id=user.id,
-        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        notification_type=NotificationType.PAYMENT_RECEIVED.value,
         title=f"Payment received for {invoice.period}",
         body=f"₹{invoice.amount:.2f} paid successfully.",
     )
@@ -435,23 +501,7 @@ def risk_score(
     if flat is None or flat.tenant_id != tenant_id:
         raise NotFoundError("Flat not found in this society", error="FLAT_NOT_FOUND")
 
-    history = list(
-        db.scalars(
-            select(MaintenanceInvoice).where(
-                MaintenanceInvoice.tenant_id == tenant_id,
-                MaintenanceInvoice.flat_id == flat_id,
-            )
-        )
-    )
-    settled = [i for i in history if i.status == InvoiceStatus.PAID.value]
-    on_time = [i for i in settled if i.paid_at and i.paid_at <= i.due_date]
-    overdue_count = len([i for i in history if i.status == InvoiceStatus.OVERDUE.value])
-
-    score = score_payment_risk(
-        on_time_ratio=(len(on_time) / len(settled)) if settled else 0.0,
-        overdue_count=overdue_count,
-        months_tracked=len(history),
-    )
+    score = _risk_for_flat(db, tenant_id=tenant_id, flat_id=flat_id)
 
     record = db.scalar(
         select(PaymentRiskScore).where(
@@ -571,7 +621,7 @@ def record_offline_payment(
         db,
         tenant_id=tenant_id,
         user_ids=occupants,
-        notification_type=NotificationType.PAYMENT_DUE_SOON.value,
+        notification_type=NotificationType.PAYMENT_RECEIVED.value,
         title=f"Payment recorded for {invoice.period}",
         body=f"Offline payment of ₹{invoice.amount:.2f} ({payload.method}) recorded.",
     )

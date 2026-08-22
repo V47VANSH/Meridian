@@ -30,6 +30,11 @@ CHANNELS: dict[str, list[str]] = {
         NotificationChannel.PUSH.value,
         NotificationChannel.EMAIL.value,
     ],
+    # A receipt travels the same channels as the reminders it closes out.
+    NotificationType.PAYMENT_RECEIVED.value: [
+        NotificationChannel.PUSH.value,
+        NotificationChannel.EMAIL.value,
+    ],
     NotificationType.COMPLAINT_STATUS_CHANGED.value: [
         NotificationChannel.PUSH.value,
         NotificationChannel.IN_APP.value,

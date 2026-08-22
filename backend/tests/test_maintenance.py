@@ -310,3 +310,135 @@ def test_risk_score_is_between_zero_and_one(client: TestClient, society: dict, l
     body = response.json()
     assert 0.0 <= body["risk_score"] <= 1.0
     assert body["period"] == "2026-07"
+
+
+def _notification_types(client: TestClient, headers: dict) -> list[str]:
+    response = client.get("/api/v1/notifications", headers=headers)
+    assert response.status_code == 200, response.text
+    return [n["type"] for n in response.json()]
+
+
+def test_overdue_transition_notifies_the_flats_occupants(
+    client: TestClient, society: dict, login
+):
+    """PAYMENT_OVERDUE was defined but nothing ever raised it.
+
+    The read-time transition is the moment the resident should hear about it,
+    and it fires once because the status persists as OVERDUE afterwards.
+    """
+    official = login("official")
+    resident = login("resident")
+
+    client.post(
+        "/api/v1/maintenance/invoices",
+        json={
+            "flat_id": society["flat_b_id"],
+            "period": "2026-05",
+            "amount": 4200.0,
+            "due_date": _iso(-3),
+        },
+        headers=official,
+    )
+
+    assert "PAYMENT_OVERDUE" not in _notification_types(client, resident)
+
+    # Reading the list is what applies the transition.
+    client.get("/api/v1/maintenance/invoices", headers=resident)
+    assert _notification_types(client, resident).count("PAYMENT_OVERDUE") == 1
+
+    # Reading again must not send a second one.
+    client.get("/api/v1/maintenance/invoices", headers=resident)
+    assert _notification_types(client, resident).count("PAYMENT_OVERDUE") == 1
+
+
+def test_a_settled_invoice_notifies_a_receipt_not_a_reminder(
+    client: TestClient, society: dict, login, gateway_signature
+):
+    """A payment confirmation was being sent as PAYMENT_DUE_SOON."""
+    official = login("official")
+    resident = login("resident")
+    invoice = _create_invoice(client, official, society["flat_b_id"], "2026-07", 4200.0)
+
+    order = client.post(
+        f"/api/v1/maintenance/invoices/{invoice['id']}/pay", headers=resident
+    ).json()
+    payment_id = "pay_receipt"
+    settled = client.post(
+        f"/api/v1/maintenance/invoices/{invoice['id']}/payments/confirm",
+        json={
+            "razorpay_order_id": order["order_id"],
+            "razorpay_payment_id": payment_id,
+            "signature": gateway_signature(order["order_id"], payment_id),
+        },
+        headers=resident,
+    )
+    assert settled.status_code == 200, settled.text
+
+    assert "PAYMENT_RECEIVED" in _notification_types(client, resident)
+
+
+def test_offline_payment_also_notifies_a_receipt(client: TestClient, society: dict, login):
+    """The offline path sends the same kind of confirmation as the gateway one."""
+    official = login("official")
+    invoice = _create_invoice(client, official, society["flat_b_id"], "2026-07", 4200.0)
+
+    recorded = client.post(
+        f"/api/v1/maintenance/invoices/{invoice['id']}/offline-payment",
+        json={"method": "CASH", "reference_note": "RCPT-1"},
+        headers=official,
+    )
+    assert recorded.status_code == 200, recorded.text
+
+    assert "PAYMENT_RECEIVED" in _notification_types(client, login("resident"))
+
+
+def test_a_high_risk_flat_gets_an_early_reminder(client: TestClient, society: dict, login):
+    """docs/02 section 5.6: a risk-score threshold triggers an early reminder.
+
+    The score was computed on request but never acted on, so the early reminder
+    the design calls for was never sent.
+    """
+    official = login("official")
+    resident = login("resident")
+
+    # Build a history of unpaid, past-due invoices, then read them so they are
+    # recorded as OVERDUE — this is what drives the risk score up.
+    for month in ("2026-01", "2026-02", "2026-03"):
+        client.post(
+            "/api/v1/maintenance/invoices",
+            json={
+                "flat_id": society["flat_b_id"],
+                "period": month,
+                "amount": 4200.0,
+                "due_date": _iso(-40),
+            },
+            headers=official,
+        )
+    client.get("/api/v1/maintenance/invoices", headers=resident)
+
+    client.post(
+        "/api/v1/maintenance/invoices",
+        json={
+            "flat_id": society["flat_b_id"],
+            "period": "2026-07",
+            "amount": 4200.0,
+            "due_date": _iso(10),
+        },
+        headers=official,
+    )
+
+    titles = [
+        n["title"] for n in client.get("/api/v1/notifications", headers=resident).json()
+    ]
+    assert any(t.startswith("Early reminder") for t in titles), titles
+
+
+def test_a_reliable_flat_gets_no_early_reminder(client: TestClient, society: dict, login):
+    """A flat with no late history is not nagged ahead of its due date."""
+    official = login("official")
+    _create_invoice(client, official, society["flat_b_id"], "2026-07", 4200.0)
+
+    titles = [
+        n["title"] for n in client.get("/api/v1/notifications", headers=login("resident")).json()
+    ]
+    assert not any(t.startswith("Early reminder") for t in titles), titles
