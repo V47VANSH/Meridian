@@ -6,6 +6,8 @@ User stories:
 - *"As a non-residential flat owner, I want to view my maintenance payments and complaint status remotely."*
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.announcements import _visible_to
 from app.api.v1.bookings import _booking_response
 from app.api.v1.complaints import _to_response
-from app.api.v1.maintenance import _flat_ids_for
+from app.api.v1.maintenance import _flat_ids_for, _refresh_overdue
 from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_roles
 from app.db.session import get_db
 from app.models import (
@@ -76,6 +78,10 @@ def resident_dashboard(
             .order_by(MaintenanceInvoice.due_date.asc())
         )
         if inv:
+            # The invoice list re-evaluates overdue status on read; without the
+            # same step here the dashboard reports an invoice as PENDING that
+            # every other screen shows as OVERDUE.
+            _refresh_overdue(db, [inv])
             pending_invoice = InvoiceResponse.model_validate(inv)
 
     # Open complaints
@@ -92,16 +98,21 @@ def resident_dashboard(
     )
     open_complaints = [_to_response(c) for c in c_rows]
 
-    # Upcoming bookings
+    # Upcoming bookings. Joined to the slot so "upcoming" means what it says:
+    # ordering by when the booking was created put a slot from last month
+    # ahead of one later this week, and past slots were included at all.
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     b_rows = list(
         db.scalars(
             select(Booking)
+            .join(FacilitySlot, FacilitySlot.id == Booking.slot_id)
             .where(
                 Booking.tenant_id == tenant_id,
                 Booking.booked_by == user.id,
                 Booking.status == BookingStatus.CONFIRMED.value,
+                FacilitySlot.date >= today,
             )
-            .order_by(Booking.created_at.desc())
+            .order_by(FacilitySlot.date.asc(), FacilitySlot.start_time.asc())
         )
     )
     upcoming_bookings = []
@@ -240,6 +251,10 @@ def non_resident_dashboard(
             .order_by(MaintenanceInvoice.due_date.asc())
         )
         if inv:
+            # The invoice list re-evaluates overdue status on read; without the
+            # same step here the dashboard reports an invoice as PENDING that
+            # every other screen shows as OVERDUE.
+            _refresh_overdue(db, [inv])
             pending_invoice = InvoiceResponse.model_validate(inv)
 
     c_rows = list(

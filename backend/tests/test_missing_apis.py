@@ -192,3 +192,86 @@ def test_dashboard_and_audit_log_endpoints(client: TestClient, society: dict, lo
     audit_res = client.get("/api/v1/audit-logs", headers=login("official"))
     assert audit_res.status_code == 200, audit_res.text
     assert isinstance(audit_res.json(), list)
+
+
+def test_resident_dashboard_reports_an_overdue_invoice_as_overdue(
+    client: TestClient, society: dict, login
+):
+    """The dashboard's pending invoice must agree with the invoice list.
+
+    Overdue status is decided on read. Without that step the dashboard showed
+    PENDING for the same invoice every other screen showed as OVERDUE.
+    """
+    official = login("official")
+    past_due = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    client.post(
+        "/api/v1/maintenance/invoices",
+        json={
+            "flat_id": society["flat_b_id"],
+            "period": "2026-05",
+            "amount": 4200.0,
+            "due_date": past_due,
+        },
+        headers=official,
+    )
+
+    dashboard = client.get("/api/v1/dashboard/resident", headers=login("resident"))
+    assert dashboard.status_code == 200, dashboard.text
+    assert dashboard.json()["pending_invoice"]["status"] == "OVERDUE"
+
+
+def test_non_resident_dashboard_reports_an_overdue_invoice_as_overdue(
+    client: TestClient, society: dict, login
+):
+    """The non-resident owner's dashboard resolves overdue status the same way."""
+    past_due = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    client.post(
+        "/api/v1/maintenance/invoices",
+        json={
+            "flat_id": society["flat_a_id"],
+            "period": "2026-05",
+            "amount": 4000.0,
+            "due_date": past_due,
+        },
+        headers=login("official"),
+    )
+
+    dashboard = client.get("/api/v1/dashboard/non-resident", headers=login("owner"))
+    assert dashboard.status_code == 200, dashboard.text
+    assert dashboard.json()["pending_invoice"]["status"] == "OVERDUE"
+
+
+def test_resident_dashboard_upcoming_bookings_exclude_past_slots(
+    client: TestClient, society: dict, login
+):
+    """"Upcoming" must mean upcoming, in slot order rather than booking order."""
+    official = login("official")
+    resident = login("resident")
+
+    facility_id = client.post(
+        "/api/v1/facilities",
+        json={"name": "Clubhouse", "type": "COMMON", "capacity": 40, "rules": ""},
+        headers=official,
+    ).json()["id"]
+
+    today = datetime.now(timezone.utc)
+    far = (today + timedelta(days=9)).strftime("%Y-%m-%d")
+    near = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+
+    # Booked nearest-first, so ordering by creation time returns them newest
+    # first — the far date ahead of the near one, which is what the dashboard
+    # used to do.
+    for date in (near, far):
+        slot_id = client.post(
+            f"/api/v1/facilities/{facility_id}/slots",
+            json={"date": date, "start_time": "18:00", "end_time": "19:00", "is_bookable": True},
+            headers=official,
+        ).json()["id"]
+        booked = client.post("/api/v1/bookings", json={"slot_id": slot_id}, headers=resident)
+        assert booked.status_code == 201, booked.text
+
+    dashboard = client.get("/api/v1/dashboard/resident", headers=resident)
+    assert dashboard.status_code == 200, dashboard.text
+
+    dates = [b["date"] for b in dashboard.json()["upcoming_bookings"]]
+    assert dates == [near, far]
