@@ -5,7 +5,10 @@ import { useAuthStore, setAuthTokens, clearAuth } from "../../../store/authStore
 import { ROLE_HOME } from "../../../lib/constants";
 import { login as loginRequest, getCurrentUser, toAuthUser } from "../../../api/auth";
 import { ApiError, api } from "../../../api/client";
+import type { components } from "../../../api/generated/schema";
 import logo from "../../../assets/logo.svg";
+
+type FlatResponse = components["schemas"]["FlatResponse"];
 
 /** Accounts created by the backend seeder, shown so the app can be demoed. */
 const DEMO_ACCOUNTS = [
@@ -41,18 +44,19 @@ export default function LoginPage() {
         const user = toAuthUser(await getCurrentUser());
         setSession(user, tokens.access_token, tokens.refresh_token);
 
-        // Resolve the user's flat so guest passes, SOS, and complaint
-        // filtering all have flatNo available without extra API calls.
+        // Resolve the caller's own flat so guest passes, SOS and the invoice
+        // screens have flatId/flatNo without another round trip. `mine=true`
+        // is what makes this correct: the unfiltered list is society-wide, so
+        // taking its first entry hands every resident the same wrong flat.
         try {
-          const flats: any = await api.get("/v1/flats");
-          const flatList: any[] = Array.isArray(flats) ? flats : (flats?.data ?? []);
-          if (flatList.length > 0) {
-            // Pick first flat (residents typically own one flat)
-            const myFlat = flatList[0];
-            setUser({ ...user, flatNo: myFlat.label, flatId: myFlat.id } as any);
+          const myFlats = await api.get<FlatResponse[]>("/v1/flats?mine=true");
+          if (myFlats.length > 0) {
+            const [myFlat] = myFlats;
+            setUser({ ...user, flatNo: myFlat.label, flatId: myFlat.id });
           }
         } catch {
-          // Non-critical — some roles (guard, staff) may have no linked flat
+          // Non-critical — a guard or staff member occupies no flat, and the
+          // screens that need one are not on their navigation.
         }
 
         return user;

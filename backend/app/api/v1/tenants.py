@@ -152,14 +152,28 @@ def create_flat(
 )
 def list_flats(
     block: str | None = Query(None, description="Filter to a single block"),
+    mine: bool = Query(
+        False,
+        description="Return only the flats the caller owns or rents",
+    ),
     db: Session = Depends(get_db),
-    _: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
 ) -> list[FlatResponse]:
-    """Return the society's flats, optionally filtered by block."""
+    """Return the society's flats, optionally filtered by block or occupancy.
+
+    Without `mine`, this is the society-wide list an official works from. With
+    `mine=true` it answers "which flat am I in?" — the question a resident's
+    guest pass, SOS alert and invoice screens need answered, and which cannot
+    be derived from the society-wide list.
+    """
     query = select(Flat).where(Flat.tenant_id == tenant_id)
     if block:
         query = query.where(Flat.block == block)
+    if mine:
+        query = query.where(
+            Flat.id.in_(select(FlatOwnership.flat_id).where(FlatOwnership.user_id == user.id))
+        )
     flats = db.scalars(query.order_by(Flat.block, Flat.flat_number)).all()
     return [_flat_response(f) for f in flats]
 

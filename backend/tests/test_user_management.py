@@ -76,3 +76,33 @@ def test_list_users_includes_created_user(client: TestClient, login):
     assert response.status_code == 200, response.text
     emails = [u["email"] for u in response.json()]
     assert "rohan.verma@greenvalley.example" in emails
+
+
+def test_mine_filter_returns_only_the_callers_own_flat(
+    client: TestClient, society: dict, login
+):
+    """`?mine=true` answers "which flat am I in?" rather than listing the society.
+
+    Without it a client has to guess — picking the first society flat, which is
+    A-102 here and belongs to someone else entirely.
+    """
+    response = client.get("/api/v1/flats?mine=true", headers=login("resident"))
+    assert response.status_code == 200, response.text
+
+    flats = response.json()
+    assert [f["label"] for f in flats] == ["B-304"]
+    assert flats[0]["id"] == society["flat_b_id"]
+
+
+def test_mine_filter_is_empty_for_a_user_with_no_flat(client: TestClient, login):
+    """A guard occupies no flat, so the filter returns nothing rather than A-102."""
+    response = client.get("/api/v1/flats?mine=true", headers=login("guard"))
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+def test_flats_defaults_to_the_whole_society(client: TestClient, login):
+    """Omitting `mine` keeps the official's society-wide view unchanged."""
+    response = client.get("/api/v1/flats", headers=login("resident"))
+    assert response.status_code == 200, response.text
+    assert {f["label"] for f in response.json()} == {"A-102", "B-304"}

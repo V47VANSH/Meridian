@@ -316,7 +316,16 @@ paths:
       tags:
       - Society Administration
       summary: List flats in the caller's society
-      description: Return the society's flats, optionally filtered by block.
+      description: 'Return the society''s flats, optionally filtered by block or occupancy.
+
+
+        Without `mine`, this is the society-wide list an official works from. With
+
+        `mine=true` it answers "which flat am I in?" — the question a resident''s
+
+        guest pass, SOS alert and invoice screens need answered, and which cannot
+
+        be derived from the society-wide list.'
       operationId: list_flats_api_v1_flats_get
       security:
       - HTTPBearer: []
@@ -331,6 +340,15 @@ paths:
           description: Filter to a single block
           title: Block
         description: Filter to a single block
+      - name: mine
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Return only the flats the caller owns or rents
+          default: false
+          title: Mine
+        description: Return only the flats the caller owns or rents
       responses:
         '200':
           description: Successful Response

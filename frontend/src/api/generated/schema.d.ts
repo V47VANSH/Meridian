@@ -147,7 +147,12 @@ export interface paths {
         };
         /**
          * List flats in the caller's society
-         * @description Return the society's flats, optionally filtered by block.
+         * @description Return the society's flats, optionally filtered by block or occupancy.
+         *
+         *     Without `mine`, this is the society-wide list an official works from. With
+         *     `mine=true` it answers "which flat am I in?" — the question a resident's
+         *     guest pass, SOS alert and invoice screens need answered, and which cannot
+         *     be derived from the society-wide list.
          */
         get: operations["list_flats_api_v1_flats_get"];
         put?: never;
@@ -2341,6 +2346,8 @@ export interface operations {
             query?: {
                 /** @description Filter to a single block */
                 block?: string | null;
+                /** @description Return only the flats the caller owns or rents */
+                mine?: boolean;
             };
             header?: never;
             path?: never;
