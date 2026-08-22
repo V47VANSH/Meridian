@@ -19,7 +19,8 @@ MAY2026-Team-098/
 
 **Frontend** — React 18, TypeScript 5.5, Vite 5, React Router 6, Zustand 4
 (session state), TanStack Query 5 (server state), Tailwind CSS 3,
-openapi-typescript (API types generated from the backend spec).
+openapi-typescript (API types generated from the backend spec), qrcode
+(scannable guest passes).
 
 **Backend** — FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2.10, uvicorn, PyJWT
 (HS256 access and refresh tokens), PBKDF2-SHA256 password hashing, SQLite by
@@ -138,14 +139,29 @@ site that no longer matches.
 
 ### Integration status
 
-Authentication runs against the real API: sign-in, registration, session
-persistence, token refresh and sign-out. Role and identity come from the
-account, not from the browser.
+Every screen renders from the API. There is no mock layer: what a page shows is
+what the backend returned, and a failed request is reported rather than hidden
+behind stale data.
 
-The remaining features — maintenance, complaints, bookings, visitors and
-announcements — still render from the mock layer in
-`frontend/src/api/mockData.ts` and are being migrated one at a time. Every page
-built for Milestone 2 therefore continues to work while the migration proceeds.
+Each feature has a typed module under `frontend/src/api/` — `complaints.ts`,
+`maintenance.ts`, `bookings.ts`, `visitors.ts`, `announcements.ts`,
+`dashboard.ts`, `directory.ts`, `residents.ts` — exposing TanStack Query hooks
+built on the generated types. A write invalidates the queries it affects, so
+the lists, counters and detail views cannot drift apart.
+
+Two things depend on outside configuration:
+
+- **Online payment** needs real Razorpay credentials. The backend verifies the
+  gateway's signature before settling an invoice, so a payment cannot be
+  confirmed without them. With the placeholder key the order is still recorded
+  and the resident is told online payment cannot complete; a society official
+  can record the payment against the invoice directly, which works fully.
+- **The AI assistant** falls back to rule-based intent matching unless
+  `GEMINI_API_KEY` is set. Either way it classifies the request and links to the
+  screen that handles it.
+
+Complaint photo attachments are not implemented: `attachment_urls` exists on
+the API but there is no upload endpoint to store a file against it.
 
 ## Documentation
 
