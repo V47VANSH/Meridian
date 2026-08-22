@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useAuthStore } from "../../store/authStore";
 import {
   ALLOWED_TRANSITIONS,
+  pathToResolved,
   useAssignComplaint,
   useComplaint,
+  useResolveComplaint,
   useUpdateComplaintPriority,
   useUpdateComplaintStatus,
 } from "../../api/complaints";
@@ -43,20 +45,30 @@ export default function ComplaintDetailModal({ complaintId, onClose }: Complaint
   const userName = useUserNames();
 
   const updateStatus = useUpdateComplaintStatus();
+  const resolveNow = useResolveComplaint();
   const assign = useAssignComplaint();
   const updatePriority = useUpdateComplaintPriority();
 
   const [note, setNote] = useState("");
 
   const staff = (users ?? []).filter((u) => ASSIGNABLE_ROLES.has(u.role));
-  const writeError = updateStatus.error ?? assign.error ?? updatePriority.error;
-  const isBusy = updateStatus.isPending || assign.isPending || updatePriority.isPending;
+  const writeError =
+    updateStatus.error ?? resolveNow.error ?? assign.error ?? updatePriority.error;
+  const isBusy =
+    updateStatus.isPending ||
+    resolveNow.isPending ||
+    assign.isPending ||
+    updatePriority.isPending;
 
   // Only transitions the lifecycle permits are offered. Rendering every status
   // as a button meant most clicks returned 400 INVALID_STATUS_TRANSITION.
   const nextStatuses: ComplaintStatus[] = complaint
     ? ALLOWED_TRANSITIONS[complaint.status as ComplaintStatus] ?? []
     : [];
+
+  // More than one step means "resolve" is not already on offer as a single
+  // transition, so the one-tap action has something to shorten.
+  const resolveSteps = complaint ? pathToResolved(complaint.status as ComplaintStatus) : [];
 
   const handleStatus = (status: ComplaintStatus) => {
     updateStatus.mutate(
@@ -177,6 +189,30 @@ export default function ComplaintDetailModal({ complaintId, onClose }: Complaint
                           Mark {COMPLAINT_STATUS_LABELS[status]}
                         </button>
                       ))}
+
+                      {/* Feedback item 4: staff who fix something on the spot
+                          should not have to click through IN_PROGRESS. This
+                          issues both transitions rather than short-cutting the
+                          lifecycle, so the history stays complete. */}
+                      {resolveSteps.length > 1 && (
+                        <button
+                          disabled={isBusy}
+                          onClick={() =>
+                            resolveNow.mutate(
+                              {
+                                id: complaintId,
+                                status: complaint.status as ComplaintStatus,
+                                note: note.trim(),
+                              },
+                              { onSuccess: () => setNote("") },
+                            )
+                          }
+                          className="btn-secondary text-xs py-1 px-3 border-signal/40 text-signal"
+                          title="Records the in-progress step too, so the history stays complete"
+                        >
+                          Resolve immediately
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

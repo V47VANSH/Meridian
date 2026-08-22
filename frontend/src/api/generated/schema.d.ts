@@ -463,6 +463,11 @@ export interface paths {
          *
          *     Officials and staff see the society-wide triage queue; residents see only
          *     the complaints they raised themselves.
+         *
+         *     `needs_triage` answers the question an official asked of the queue: which
+         *     of these did the system guess at? Urgency ordering alone cannot surface
+         *     them, because a complaint the classifier was unsure about is exactly the
+         *     one whose urgency may be wrong.
          */
         get: operations["list_complaints_api_v1_complaints_get"];
         put?: never;
@@ -3366,6 +3371,8 @@ export interface operations {
                 status?: components["schemas"]["ComplaintStatus"] | null;
                 /** @description Staff: only complaints assigned to me */
                 assigned_to_me?: boolean;
+                /** @description Only complaints the classifier was unsure about, awaiting a human decision */
+                needs_triage?: boolean;
             };
             header?: never;
             path?: never;

@@ -37,13 +37,18 @@ export const ALLOWED_TRANSITIONS: Record<ComplaintStatus, ComplaintStatus[]> = {
   CLOSED: [],
 };
 
-export function listComplaints(params?: {
+export interface ComplaintFilters {
   status?: ComplaintStatus;
   assignedToMe?: boolean;
-}): Promise<Complaint[]> {
+  /** Only complaints the classifier was unsure about. */
+  needsTriage?: boolean;
+}
+
+export function listComplaints(params?: ComplaintFilters): Promise<Complaint[]> {
   const query = new URLSearchParams();
   if (params?.status) query.set("status", params.status);
   if (params?.assignedToMe) query.set("assigned_to_me", "true");
+  if (params?.needsTriage) query.set("needs_triage", "true");
   const suffix = query.toString();
   return api.get<Complaint[]>(`/v1/complaints${suffix ? `?${suffix}` : ""}`);
 }
@@ -56,8 +61,12 @@ export function getComplaintSummary(): Promise<ComplaintSummary> {
   return api.get<ComplaintSummary>("/v1/complaints/summary");
 }
 
-export function useComplaints(params?: { status?: ComplaintStatus; assignedToMe?: boolean }) {
-  const filter = `${params?.status ?? "all"}:${params?.assignedToMe ? "mine" : "any"}`;
+export function useComplaints(params?: ComplaintFilters) {
+  const filter = [
+    params?.status ?? "all",
+    params?.assignedToMe ? "mine" : "any",
+    params?.needsTriage ? "triage" : "all",
+  ].join(":");
   return useQuery({
     queryKey: complaintKeys.list(filter),
     queryFn: () => listComplaints(params),
@@ -102,6 +111,43 @@ export function useUpdateComplaintStatus() {
       api.patch<Complaint>(`/v1/complaints/${id}/status`, { status, note: note ?? "" }),
     onSuccess: invalidate,
   });
+}
+
+/**
+ * Resolve a complaint in one action, issuing every transition on the way.
+ *
+ * The lifecycle deliberately has no OPEN -> RESOLVED edge: the intermediate
+ * state is what makes the audit trail meaningful. Staff who fix something on
+ * the spot should not have to click twice to say so, so this walks the path
+ * instead of short-cutting it, and each step appends its own history entry.
+ */
+export function useResolveComplaint() {
+  const invalidate = useInvalidateComplaints();
+  return useMutation({
+    mutationFn: async ({ id, status, note }: { id: string; status: ComplaintStatus; note?: string }) => {
+      const steps = pathToResolved(status);
+      let complaint: Complaint | null = null;
+      for (const step of steps) {
+        complaint = await api.patch<Complaint>(`/v1/complaints/${id}/status`, {
+          status: step,
+          note: note?.trim()
+            ? note.trim()
+            : step === "RESOLVED"
+              ? "Resolved on the spot"
+              : "Work started",
+        });
+      }
+      return complaint as Complaint;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/** The transitions needed to get from `from` to RESOLVED, in order. */
+export function pathToResolved(from: ComplaintStatus): ComplaintStatus[] {
+  if (from === "OPEN") return ["IN_PROGRESS", "RESOLVED"];
+  if (from === "IN_PROGRESS") return ["RESOLVED"];
+  return [];
 }
 
 export function useAssignComplaint() {

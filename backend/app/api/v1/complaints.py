@@ -188,6 +188,10 @@ def list_complaints(
         None, alias="status", description="Filter by status"
     ),
     assigned_to_me: bool = Query(False, description="Staff: only complaints assigned to me"),
+    needs_triage: bool = Query(
+        False,
+        description="Only complaints the classifier was unsure about, awaiting a human decision",
+    ),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
     tenant_id: str = Depends(get_tenant_id),
@@ -196,6 +200,11 @@ def list_complaints(
 
     Officials and staff see the society-wide triage queue; residents see only
     the complaints they raised themselves.
+
+    `needs_triage` answers the question an official asked of the queue: which
+    of these did the system guess at? Urgency ordering alone cannot surface
+    them, because a complaint the classifier was unsure about is exactly the
+    one whose urgency may be wrong.
     """
     query = select(Complaint).where(Complaint.tenant_id == tenant_id)
 
@@ -206,6 +215,9 @@ def list_complaints(
 
     if complaint_status:
         query = query.where(Complaint.status == complaint_status.value)
+
+    if needs_triage:
+        query = query.where(Complaint.needs_manual_triage.is_(True))
 
     complaints = list(db.scalars(query))
     complaints.sort(key=lambda c: (_URGENCY_RANK.get(c.urgency, 3), c.created_at))

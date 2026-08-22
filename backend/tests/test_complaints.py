@@ -235,3 +235,86 @@ def test_unknown_complaint_returns_not_found(client: TestClient, society: dict, 
 
     assert response.status_code == 404
     assert response.json()["error"] == "COMPLAINT_NOT_FOUND"
+
+
+def test_needs_triage_filter_isolates_uncertain_classifications(
+    client: TestClient, society: dict, login
+):
+    """Feedback item 3: an official wants to see what the system guessed at.
+
+    Urgency ordering cannot surface these on its own — a complaint the
+    classifier was unsure about is precisely the one whose urgency may be wrong.
+    """
+    resident = login("resident")
+
+    # Keyword-matched, then confirmed by an explicit category and urgency, so
+    # nothing was guessed.
+    confident = client.post(
+        "/api/v1/complaints",
+        json={
+            "title": "Basement tap leaking",
+            "description": "The tap in the basement is leaking steadily.",
+            "category": "PLUMBING",
+            "urgency": "MEDIUM",
+        },
+        headers=resident,
+    )
+    assert confident.status_code == 201, confident.text
+    assert confident.json()["needs_manual_triage"] is False
+
+    # No category or urgency given, so the rule-based classifier guesses and
+    # flags it for a human.
+    guessed = client.post(
+        "/api/v1/complaints",
+        json={
+            "title": "Something is off",
+            "description": "There is a strange situation near the community hall.",
+        },
+        headers=resident,
+    )
+    assert guessed.status_code == 201, guessed.text
+    assert guessed.json()["needs_manual_triage"] is True
+
+    response = client.get("/api/v1/complaints?needs_triage=true", headers=login("official"))
+    assert response.status_code == 200, response.text
+
+    ids = [c["id"] for c in response.json()]
+    assert ids == [guessed.json()["id"]]
+
+
+def test_needs_triage_filter_is_off_by_default(client: TestClient, login):
+    """Omitting the flag keeps the full queue, so the default view is unchanged."""
+    resident = login("resident")
+    for title in ("Lift is stuck", "Corridor light is out"):
+        client.post(
+            "/api/v1/complaints",
+            json={"title": title, "description": f"{title} and needs attention."},
+            headers=resident,
+        )
+
+    unfiltered = client.get("/api/v1/complaints", headers=login("official"))
+    assert unfiltered.status_code == 200, unfiltered.text
+    assert len(unfiltered.json()) == 2
+
+
+def test_assigning_a_complaint_clears_it_from_the_triage_filter(
+    client: TestClient, society: dict, login
+):
+    """Assignment is a human reviewing the classification, so the flag clears."""
+    official = login("official")
+    complaint_id = client.post(
+        "/api/v1/complaints",
+        json={"title": "Unclear issue", "description": "Hard to describe, please look."},
+        headers=login("resident"),
+    ).json()["id"]
+
+    assert client.get("/api/v1/complaints?needs_triage=true", headers=official).json()
+
+    assigned = client.post(
+        f"/api/v1/complaints/{complaint_id}/assign",
+        json={"assigned_to": society["staff_id"]},
+        headers=official,
+    )
+    assert assigned.status_code == 200, assigned.text
+
+    assert client.get("/api/v1/complaints?needs_triage=true", headers=official).json() == []

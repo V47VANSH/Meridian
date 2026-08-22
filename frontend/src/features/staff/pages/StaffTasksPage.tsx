@@ -4,7 +4,9 @@ import EmptyState from "../../../components/EmptyState";
 import { ErrorBanner, QueryState } from "../../../components/QueryState";
 import {
   ALLOWED_TRANSITIONS,
+  pathToResolved,
   useComplaints,
+  useResolveComplaint,
   useUpdateComplaintStatus,
 } from "../../../api/complaints";
 import { useFlatLabels } from "../../../api/directory";
@@ -18,7 +20,9 @@ export default function StaffTasksPage() {
   // could have raised, and changing a status only moved a local flag.
   const tasks = useComplaints({ assignedToMe: true });
   const updateStatus = useUpdateComplaintStatus();
+  const resolveNow = useResolveComplaint();
   const flatLabel = useFlatLabels();
+  const isBusy = updateStatus.isPending || resolveNow.isPending;
 
   const rows = (tasks.data ?? []).filter((task) => task.status !== "CLOSED");
 
@@ -31,7 +35,7 @@ export default function StaffTasksPage() {
       />
 
       <div className="mb-4">
-        <ErrorBanner error={updateStatus.error} />
+        <ErrorBanner error={updateStatus.error ?? resolveNow.error} />
       </div>
 
       <QueryState
@@ -50,6 +54,11 @@ export default function StaffTasksPage() {
             {rows.map((task) => {
               // Only transitions the lifecycle permits; anything else is a 400.
               const next = ALLOWED_TRANSITIONS[task.status as ComplaintStatus] ?? [];
+              // Feedback item 4: fixing something on the spot should be one
+              // action, not two. This still issues both transitions so the
+              // history records that work was started.
+              const canResolveInOneStep =
+                pathToResolved(task.status as ComplaintStatus).length > 1;
               return (
                 <div key={task.id} className="flex items-center justify-between px-5 py-4 gap-4">
                   <div className="min-w-0">
@@ -66,11 +75,26 @@ export default function StaffTasksPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <StatusBadge status={task.urgency} />
                     <StatusBadge status={task.status} />
+                    {canResolveInOneStep && (
+                      <button
+                        onClick={() =>
+                          resolveNow.mutate({
+                            id: task.id,
+                            status: task.status as ComplaintStatus,
+                          })
+                        }
+                        disabled={isBusy}
+                        className="btn-secondary py-1 px-2.5 text-xs border-signal/40 text-signal"
+                        title="Records the in-progress step too, so the history stays complete"
+                      >
+                        Resolve now
+                      </button>
+                    )}
                     {next.length > 0 && (
                       <select
                         className="input-field py-1 text-xs w-36"
                         value=""
-                        disabled={updateStatus.isPending}
+                        disabled={isBusy}
                         onChange={(e) =>
                           e.target.value &&
                           updateStatus.mutate({

@@ -1205,7 +1205,16 @@ paths:
 
         Officials and staff see the society-wide triage queue; residents see only
 
-        the complaints they raised themselves.'
+        the complaints they raised themselves.
+
+
+        `needs_triage` answers the question an official asked of the queue: which
+
+        of these did the system guess at? Urgency ordering alone cannot surface
+
+        them, because a complaint the classifier was unsure about is exactly the
+
+        one whose urgency may be wrong.'
       operationId: list_complaints_api_v1_complaints_get
       security:
       - HTTPBearer: []
@@ -1229,6 +1238,15 @@ paths:
           default: false
           title: Assigned To Me
         description: 'Staff: only complaints assigned to me'
+      - name: needs_triage
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Only complaints the classifier was unsure about, awaiting a human decision
+          default: false
+          title: Needs Triage
+        description: Only complaints the classifier was unsure about, awaiting a human decision
       responses:
         '200':
           description: Successful Response

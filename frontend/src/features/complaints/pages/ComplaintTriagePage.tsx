@@ -29,8 +29,12 @@ export default function ComplaintTriagePage() {
   const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | "ALL">("ALL");
   const [urgencyFilter, setUrgencyFilter] = useState<ComplaintUrgency | "ALL">("ALL");
+  const [needsTriageOnly, setNeedsTriageOnly] = useState(false);
 
-  const complaints = useComplaints(statusFilter === "ALL" ? undefined : { status: statusFilter });
+  const complaints = useComplaints({
+    status: statusFilter === "ALL" ? undefined : statusFilter,
+    needsTriage: needsTriageOnly,
+  });
   const flatLabel = useFlatLabels();
 
   // Urgency has no server-side filter, so it is applied here. The backend
@@ -96,7 +100,22 @@ export default function ComplaintTriagePage() {
           </div>
         </div>
 
-        <span className="text-ink-500">Tickets listed: {sorted.length}</span>
+        <div className="flex items-center gap-4">
+          {/* Feedback item 3: urgency ordering cannot surface the complaints
+              the classifier guessed at — those need their own filter. */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={needsTriageOnly}
+              onChange={(e) => setNeedsTriageOnly(e.target.checked)}
+              className="accent-signal"
+            />
+            <span className={needsTriageOnly ? "text-signal" : "text-ink-300"}>
+              Needs triage only
+            </span>
+          </label>
+          <span className="text-ink-500">Tickets listed: {sorted.length}</span>
+        </div>
       </div>
 
       <QueryState
@@ -108,7 +127,11 @@ export default function ComplaintTriagePage() {
         {sorted.length === 0 ? (
           <EmptyState
             title="No complaints matching the selected filters"
-            hint="Clear a filter to widen the queue."
+            hint={
+              needsTriageOnly
+                ? "Nothing is awaiting a triage decision."
+                : "Clear a filter to widen the queue."
+            }
           />
         ) : (
           <div className="bp-card overflow-hidden">
@@ -146,7 +169,17 @@ export default function ComplaintTriagePage() {
                       <StatusBadge status={c.urgency} />
                     </td>
                     <td className="px-5 py-3">
-                      <StatusBadge status={c.status} />
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={c.status} />
+                        {c.needs_manual_triage && (
+                          <span
+                            title="The classifier was unsure — confirm the category and urgency"
+                            className="text-signal font-mono text-[10px]"
+                          >
+                            ?
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3 text-right">
                       <button className="btn-secondary py-1 px-2.5 text-xs">Details</button>
