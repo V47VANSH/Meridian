@@ -44,7 +44,7 @@ from app.schemas import (
     RiskScoreResponse,
 )
 from app.services import audit, notifications
-from app.services.ml_client import score_payment_risk
+from app.services.ml_client import RiskFeatures, score_payment_risk
 
 router = APIRouter(prefix="/maintenance", tags=["Maintenance & Payments"])
 
@@ -80,9 +80,24 @@ def _risk_for_flat(db: Session, *, tenant_id: str, flat_id: str) -> float:
     )
     settled = [i for i in history if i.status == InvoiceStatus.PAID.value]
     on_time = [i for i in settled if i.paid_at and i.paid_at <= i.due_date]
+    late = [i for i in settled if i.paid_at and i.paid_at > i.due_date]
     overdue_count = len([i for i in history if i.status == InvoiceStatus.OVERDUE.value])
 
-    return score_payment_risk(
+    avg_days_late = (
+        sum((i.paid_at - i.due_date).total_seconds() for i in late) / len(late) / 86_400
+        if late
+        else 0.0
+    )
+    outstanding = sum(i.amount for i in history if i.status != InvoiceStatus.PAID.value)
+
+    features = RiskFeatures(
+        past_late_count=len(late),
+        avg_days_late=avg_days_late,
+        current_dues_amount=outstanding,
+        # Distinct billing periods, which is what "how long has this flat been
+        # billed" means — two invoices in one month is not two months.
+        tenure_months=len({i.period for i in history}),
+        month=utcnow().month,
         # No settled invoice yet means the punctuality of this flat is unknown,
         # not bad. Passing 0.0 here would have read as "never pays on time" and
         # made every flat's very first invoice look maximally risky.
@@ -90,6 +105,7 @@ def _risk_for_flat(db: Session, *, tenant_id: str, flat_id: str) -> float:
         overdue_count=overdue_count,
         months_tracked=len(history),
     )
+    return score_payment_risk(features)
 
 
 def _occupants_of(db: Session, flat_id: str) -> list[str]:

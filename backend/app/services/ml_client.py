@@ -157,16 +157,77 @@ def classify_complaint(description: str) -> Classification:
     )
 
 
-def score_payment_risk(*, on_time_ratio: float, overdue_count: int, months_tracked: int) -> float:
-    """Likelihood (0..1) that a flat pays its next invoice late.
+@dataclass
+class RiskFeatures:
+    """The feature set docs/04-ml-architecture.md section 4 defines.
 
-    The trained model owns this in production; this deterministic formula is
-    the documented fallback and keeps the endpoint testable offline.
+    Computed by the backend and passed in the request body — the ML service is
+    stateless and never queries this database itself.
     """
-    if months_tracked <= 0:
+
+    past_late_count: int
+    avg_days_late: float
+    current_dues_amount: float
+    tenure_months: int
+    month: int
+    # Not sent to the model; used only by the deterministic fallback below.
+    on_time_ratio: float
+    overdue_count: int
+    months_tracked: int
+
+    def as_payload(self) -> dict:
+        return {
+            "past_late_count": self.past_late_count,
+            "avg_days_late": round(self.avg_days_late, 4),
+            "current_dues_amount": round(self.current_dues_amount, 2),
+            "tenure_months": self.tenure_months,
+            "month": self.month,
+        }
+
+
+def _fallback_risk(features: RiskFeatures) -> float:
+    """Deterministic score used whenever the model is unavailable.
+
+    docs/04 section 7: an unreachable ML service must never block a user-facing
+    action, and payment risk is the least critical of the two — so this returns
+    a usable number rather than an error.
+    """
+    if features.months_tracked <= 0:
         return 0.5  # No history yet: neutral score, never a penalty.
 
-    lateness = 1.0 - max(0.0, min(1.0, on_time_ratio))
-    recency_penalty = min(overdue_count / max(months_tracked, 1), 1.0)
+    lateness = 1.0 - max(0.0, min(1.0, features.on_time_ratio))
+    recency_penalty = min(features.overdue_count / max(features.months_tracked, 1), 1.0)
     score = (0.65 * lateness) + (0.35 * recency_penalty)
+    return round(max(0.0, min(1.0, score)), 4)
+
+
+def score_payment_risk(features: RiskFeatures) -> float:
+    """Likelihood (0..1) that a flat pays its next invoice late.
+
+    Calls the trained model when one is configured, and falls back to the
+    deterministic formula on any failure.
+    """
+    if not settings.ML_SERVICE_URL:
+        return _fallback_risk(features)
+
+    request = urllib.request.Request(
+        url=f"{settings.ML_SERVICE_URL.rstrip('/')}/payment-risk/score",
+        data=json.dumps(features.as_payload()).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Internal-Secret": settings.ML_SHARED_SECRET,
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=settings.ML_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        score = float(payload["risk_score"])
+    except (urllib.error.URLError, TimeoutError, KeyError, ValueError, json.JSONDecodeError) as exc:
+        logger.warning("ML risk scoring unavailable, using deterministic fallback: %s", exc)
+        return _fallback_risk(features)
+
+    # A model is not required to return a probability; clamping keeps the
+    # threshold comparison downstream meaningful whatever comes back.
     return round(max(0.0, min(1.0, score)), 4)
