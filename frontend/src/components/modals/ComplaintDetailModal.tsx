@@ -1,8 +1,32 @@
 import { useState } from "react";
-import { api } from "../../api/client";
 import { useAuthStore } from "../../store/authStore";
-import { Complaint, complaints, notifyMockDataChanged } from "../../api/mockData";
+import {
+  ALLOWED_TRANSITIONS,
+  useAssignComplaint,
+  useComplaint,
+  useUpdateComplaintPriority,
+  useUpdateComplaintStatus,
+} from "../../api/complaints";
+import { useFlatLabels, useUserNames, useUsers } from "../../api/directory";
+import {
+  COMPLAINT_CATEGORY_LABELS,
+  COMPLAINT_STATUS_LABELS,
+  URGENCY_LABELS,
+  URGENCY_LEVELS,
+  labelFor,
+} from "../../lib/labels";
+import { formatDateTime } from "../../lib/format";
+import { ErrorBanner, LoadingState } from "../QueryState";
 import StatusBadge from "../StatusBadge";
+import type { ComplaintStatus, ComplaintUrgency } from "../../api/types";
+
+/** Roles the backend accepts as a complaint assignee. */
+const ASSIGNABLE_ROLES = new Set([
+  "MAINTENANCE_STAFF",
+  "CLEANING_STAFF",
+  "SERVICE_PROVIDER",
+  "SECURITY_GUARD",
+]);
 
 interface ComplaintDetailModalProps {
   complaintId: string;
@@ -11,163 +35,198 @@ interface ComplaintDetailModalProps {
 
 export default function ComplaintDetailModal({ complaintId, onClose }: ComplaintDetailModalProps) {
   const { user } = useAuthStore();
-  const [complaint, setComplaint] = useState<Complaint | undefined>(
-    complaints.find((c) => c.id === complaintId)
-  );
-
-  if (!complaint) return null;
-
   const isOfficial = user?.role === "SOCIETY_OFFICIAL";
 
-  const handleUpdateStatus = async (newStatus: "IN_PROGRESS" | "RESOLVED" | "OPEN") => {
-    try {
-      await api.patch(`/v1/complaints/${complaint.id}/status`, {
-        status: newStatus,
-        note: `Status marked as ${newStatus.replace("_", " ")} by ${user?.name || "Official"}`,
-      });
-    } catch {
-      // Backend may fail or not be reachable, proceed with local update
-    }
-    const target = complaints.find((c) => c.id === complaint.id);
-    if (target) {
-      target.status = newStatus;
-      target.timeline.unshift({
-        label: `Status marked as ${newStatus.replace("_", " ")}`,
-        date: new Date().toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
-      setComplaint({ ...target });
-      notifyMockDataChanged();
-    }
-  };
+  const { data: complaint, isPending, error } = useComplaint(complaintId);
+  const { data: users } = useUsers();
+  const flatLabel = useFlatLabels();
+  const userName = useUserNames();
 
-  const handleAssign = async (assignee: string) => {
-    if (!assignee) return;
-    const target = complaints.find((c) => c.id === complaint.id);
-    if (target) {
-      target.status = "IN_PROGRESS";
-      target.timeline.unshift({
-        label: `Assigned to ${assignee}`,
-        date: new Date().toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      });
-      setComplaint({ ...target });
-      notifyMockDataChanged();
-    }
+  const updateStatus = useUpdateComplaintStatus();
+  const assign = useAssignComplaint();
+  const updatePriority = useUpdateComplaintPriority();
+
+  const [note, setNote] = useState("");
+
+  const staff = (users ?? []).filter((u) => ASSIGNABLE_ROLES.has(u.role));
+  const writeError = updateStatus.error ?? assign.error ?? updatePriority.error;
+  const isBusy = updateStatus.isPending || assign.isPending || updatePriority.isPending;
+
+  // Only transitions the lifecycle permits are offered. Rendering every status
+  // as a button meant most clicks returned 400 INVALID_STATUS_TRANSITION.
+  const nextStatuses: ComplaintStatus[] = complaint
+    ? ALLOWED_TRANSITIONS[complaint.status as ComplaintStatus] ?? []
+    : [];
+
+  const handleStatus = (status: ComplaintStatus) => {
+    updateStatus.mutate(
+      { id: complaintId, status, note: note.trim() },
+      { onSuccess: () => setNote("") },
+    );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div onClick={onClose} className="absolute inset-0 bg-blueprint-950/80 backdrop-blur-xs"></div>
+      <div onClick={onClose} className="absolute inset-0 bg-blueprint-950/80 backdrop-blur-xs" />
 
-      {/* Modal Card Box */}
-      <div className="relative w-full max-w-lg bg-blueprint-900 border border-blueprint-700 p-6 rounded-sm shadow-2xl bp-canvas z-10">
-        {/* Drafting corner ticks */}
-        <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t border-l border-blueprint-500"></div>
-        <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b border-r border-blueprint-500"></div>
+      <div className="relative z-10 w-full max-w-2xl bp-card p-6 max-h-[85vh] overflow-y-auto">
+        {isPending && <LoadingState label="Loading complaint…" />}
+        {error && <ErrorBanner error={error} />}
 
-        {/* Header */}
-        <div className="flex justify-between items-start border-b border-blueprint-700 pb-3 mb-4">
-          <div>
-            <p className="bp-eyebrow font-mono text-[10px] tracking-wider text-signal">{complaint.id} / {complaint.category}</p>
-            <h3 className="font-display font-semibold text-lg text-ink-100 mt-1">{complaint.title}</h3>
-          </div>
-          <button onClick={onClose} className="text-ink-500 hover:text-signal font-mono text-sm leading-none p-1">
-            [×] Close
-          </button>
-        </div>
+        {complaint && (
+          <>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="bp-eyebrow mb-1">
+                  {labelFor(COMPLAINT_CATEGORY_LABELS, complaint.category)}
+                </p>
+                <h3 className="text-lg font-semibold">{complaint.title}</h3>
+                <p className="text-xs font-mono text-ink-500 mt-1">{complaint.id}</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-ink-500 hover:text-ink-100 text-xl leading-none"
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
 
-        {/* Info Rows */}
-        <div className="grid grid-cols-2 gap-4 mb-4 text-xs font-mono">
-          <div className="border border-blueprint-700 p-2.5 rounded-xs bg-blueprint-950/40">
-            <p className="text-ink-500 uppercase text-[9px] mb-1">Raised By</p>
-            <p className="text-ink-100 font-semibold">{complaint.raisedBy} (Flat {complaint.flatNo})</p>
-          </div>
-          <div className="border border-blueprint-700 p-2.5 rounded-xs bg-blueprint-950/40">
-            <p className="text-ink-500 uppercase text-[9px] mb-1">Created At</p>
-            <p className="text-ink-100 font-semibold">{complaint.createdAt}</p>
-          </div>
-          <div className="border border-blueprint-700 p-2.5 rounded-xs bg-blueprint-950/40">
-            <p className="text-ink-500 uppercase text-[9px] mb-1">Urgency</p>
-            <StatusBadge status={complaint.urgency} />
-          </div>
-          <div className="border border-blueprint-700 p-2.5 rounded-xs bg-blueprint-950/40">
-            <p className="text-ink-500 uppercase text-[9px] mb-1">Current Status</p>
-            <StatusBadge status={complaint.status} />
-          </div>
-        </div>
+            <div className="flex gap-2 mb-4">
+              <StatusBadge status={complaint.status} />
+              <StatusBadge status={complaint.urgency} />
+              {complaint.needs_manual_triage && (
+                <span className="badge badge-pending">Needs triage</span>
+              )}
+            </div>
 
-        {/* Description */}
-        <div className="mb-5 text-xs text-ink-300 leading-relaxed border-t border-b border-blueprint-700/60 py-3 bg-blueprint-950/20 px-1 font-body">
-          <p className="font-mono text-[9px] uppercase tracking-wider text-ink-500 mb-1.5 font-bold">Details</p>
-          {complaint.description || "No detailed description provided."}
-        </div>
+            <dl className="grid grid-cols-2 gap-3 text-sm mb-5">
+              <div>
+                <dt className="text-ink-500 text-xs font-mono uppercase">Raised by</dt>
+                <dd className="text-ink-100">
+                  {userName(complaint.raised_by)} ({flatLabel(complaint.flat_id)})
+                </dd>
+              </div>
+              <div>
+                <dt className="text-ink-500 text-xs font-mono uppercase">Raised at</dt>
+                <dd className="text-ink-100">{formatDateTime(complaint.created_at)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-500 text-xs font-mono uppercase">Assigned to</dt>
+                <dd className="text-ink-100">
+                  {complaint.assigned_to ? userName(complaint.assigned_to) : "Unassigned"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-ink-500 text-xs font-mono uppercase">Resolved at</dt>
+                <dd className="text-ink-100">
+                  {complaint.resolved_at ? formatDateTime(complaint.resolved_at) : "—"}
+                </dd>
+              </div>
+            </dl>
 
-        {/* Timeline */}
-        <div className="mb-6">
-          <p className="bp-eyebrow text-[10px] mb-3">Timeline Logs</p>
-          <ol className="space-y-3 max-h-32 overflow-y-auto pr-1">
-            {complaint.timeline.map((t, idx) => (
-              <li key={idx} className="flex gap-2.5 text-xs font-body">
-                <div className="flex flex-col items-center pt-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-signal" />
-                  {idx < complaint.timeline.length - 1 && (
-                    <span className="w-px flex-1 bg-blueprint-700 mt-1" />
+            <p className="text-sm text-ink-300 leading-relaxed mb-6">{complaint.description}</p>
+
+            <p className="bp-eyebrow mb-3">HISTORY</p>
+            <ol className="space-y-3 mb-6">
+              {(complaint.history ?? []).map((entry) => (
+                <li key={entry.id} className="flex gap-3 text-sm">
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-signal" />
+                  <div>
+                    <p className="text-ink-100">
+                      {entry.note ||
+                        `Status changed to ${labelFor(COMPLAINT_STATUS_LABELS, entry.status)}`}
+                    </p>
+                    <p className="text-xs font-mono text-ink-500">
+                      {userName(entry.changed_by)} · {formatDateTime(entry.changed_at)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            {isOfficial && (
+              <div className="border-t border-blueprint-700 pt-5 space-y-4">
+                <ErrorBanner error={writeError} />
+
+                <div>
+                  <label className="label-field">Note (recorded in the history)</label>
+                  <input
+                    className="input-field"
+                    placeholder="Optional note for this update"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <p className="label-field">Advance status</p>
+                  {nextStatuses.length === 0 ? (
+                    <p className="text-xs font-mono text-ink-500">
+                      This complaint is closed — no further transitions.
+                    </p>
+                  ) : (
+                    <div className="flex gap-2 flex-wrap">
+                      {nextStatuses.map((status) => (
+                        <button
+                          key={status}
+                          disabled={isBusy}
+                          onClick={() => handleStatus(status)}
+                          className="btn-secondary text-xs py-1 px-3"
+                        >
+                          Mark {COMPLAINT_STATUS_LABELS[status]}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <div>
-                  <p className="text-ink-100 leading-none">{t.label}</p>
-                  <p className="text-[10px] text-ink-500 font-mono mt-0.5">{t.date}</p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label-field">Assign to staff</label>
+                    <select
+                      className="input-field"
+                      disabled={isBusy}
+                      value={complaint.assigned_to ?? ""}
+                      onChange={(e) =>
+                        e.target.value &&
+                        assign.mutate({ id: complaintId, assignedTo: e.target.value })
+                      }
+                    >
+                      <option value="">Unassigned</option>
+                      {staff.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label-field">Priority</label>
+                    <select
+                      className="input-field"
+                      disabled={isBusy}
+                      value={complaint.urgency}
+                      onChange={(e) =>
+                        updatePriority.mutate({
+                          id: complaintId,
+                          urgency: e.target.value as ComplaintUrgency,
+                          note: note.trim(),
+                        })
+                      }
+                    >
+                      {URGENCY_LEVELS.map((level) => (
+                        <option key={level} value={level}>
+                          {URGENCY_LABELS[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        {/* Action Console (Officials Only) */}
-        {isOfficial && (
-          <div className="border-t border-blueprint-700 pt-4 bg-blueprint-950/40 -mx-6 -mb-6 p-6 rounded-b-sm">
-            <p className="bp-eyebrow text-[10px] mb-3">Triage Controls</p>
-            <div className="flex flex-wrap gap-3 items-center justify-between">
-              <div className="flex gap-2">
-                {complaint.status === "OPEN" && (
-                  <button
-                    onClick={() => handleUpdateStatus("IN_PROGRESS")}
-                    className="btn-primary py-1.5 px-3 text-xs bg-blueprint-700 hover:bg-blueprint-600 text-ink-100 border border-blueprint-600"
-                  >
-                    Start Work
-                  </button>
-                )}
-                {complaint.status !== "RESOLVED" ? (
-                  <button
-                    onClick={() => handleUpdateStatus("RESOLVED")}
-                    className="btn-primary py-1.5 px-4 text-xs bg-emerald-600 hover:bg-emerald-500 text-ink-100"
-                  >
-                    Resolve Ticket
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleUpdateStatus("OPEN")}
-                    className="btn-secondary py-1.5 px-3 text-xs border-blueprint-500"
-                  >
-                    Re-open Ticket
-                  </button>
-                )}
               </div>
-
-              <div>
-                <select
-                  onChange={(e) => handleAssign(e.target.value)}
-                  className="input-field py-1 text-xs w-40"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Assign order to…</option>
-                  <option value="Maintenance Staff">Maintenance Staff</option>
-                  <option value="Cleaning Staff">Cleaning Staff</option>
-                  <option value="Service Provider">Service Provider</option>
-                </select>
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

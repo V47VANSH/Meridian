@@ -1,115 +1,86 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../../components/PageHeader";
-import { complaints, notifyMockDataChanged } from "../../../api/mockData";
-import { useAuthStore } from "../../../store/authStore";
-import { api } from "../../../api/client";
+import { ErrorBanner } from "../../../components/QueryState";
+import { useRaiseComplaint } from "../../../api/complaints";
+import { useMyFlats } from "../../../api/directory";
+import { COMPLAINT_CATEGORIES, COMPLAINT_CATEGORY_LABELS, URGENCY_LABELS, URGENCY_LEVELS } from "../../../lib/labels";
+import type { ComplaintCategory, ComplaintUrgency } from "../../../api/types";
+
+/**
+ * Leaving both category and urgency unset asks the backend to classify the
+ * complaint from its text instead. That is the default here: the resident
+ * describing a leak should not have to decide whether it is PLUMBING or
+ * STRUCTURAL, and the classifier flags anything it is unsure of for triage.
+ */
+const AUTO = "AUTO";
 
 export default function RaiseComplaintPage() {
-  const { user } = useAuthStore();
   const navigate = useNavigate();
-  const [submitted, setSubmitted] = useState(false);
-  const [newId, setNewId] = useState("");
-  const [error, setError] = useState("");
+  const raise = useRaiseComplaint();
+  const { data: myFlats } = useMyFlats();
 
-  const [category, setCategory] = useState("Plumbing");
+  const [newId, setNewId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState("");
+
+  const [category, setCategory] = useState<ComplaintCategory | typeof AUTO>(AUTO);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "URGENT">("LOW");
-
-  // Map frontend display labels → backend enum values (ComplaintCategory)
-  const categoryToBackend: Record<string, string> = {
-    "Plumbing": "PLUMBING",
-    "Electrical/Mechanical": "ELECTRICAL",
-    "Common Area": "GENERAL",
-    "Security": "SECURITY",
-    "Other": "GENERAL",
-  };
+  const [urgency, setUrgency] = useState<ComplaintUrgency | typeof AUTO>(AUTO);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError("");
+    setValidationError("");
 
     if (!title.trim()) {
-      setError("Please enter a title for your complaint.");
+      setValidationError("Please enter a title for your complaint.");
       return;
     }
     if (!description.trim()) {
-      setError("Please describe the issue in detail.");
+      setValidationError("Please describe the issue in detail.");
       return;
     }
 
-    let complaintId = `CMP-${1043 + complaints.length}`;
-    let backendId: string | undefined;
-    try {
-      const res: any = await api.post("/v1/complaints", {
-        title: title.trim(),
-        description: description.trim(),
-        // Map to backend enum values; fallback to GENERAL if unknown
-        category: categoryToBackend[category] ?? "GENERAL",
-        urgency: urgency === "URGENT" ? "HIGH" : urgency,
-      });
-      // apiFetch returns the parsed JSON body directly — not wrapped in { data: ... }
-      if (res?.id) {
-        complaintId = res.id;
-        backendId = res.id;
-      }
-    } catch {
-      // Gracefully fall back to local store if backend offline
-    }
-
-    const now = new Date();
-    const dateLabel =
-      now.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-      ", " +
-      now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-    const newComplaint = {
-      id: complaintId,
+    // Only a successful response marks the complaint as raised. The previous
+    // version reported success even when the request failed, so a resident
+    // could believe an issue was filed that the society never received.
+    const complaint = await raise.mutateAsync({
       title: title.trim(),
-      category,
-      raisedBy: user?.name || "Resident",
-      // Store the backend UUID so after a page refresh the filter still matches
-      raisedById: backendId ?? (user?.id || undefined),
-      flatNo: user?.flatNo || "B-304",
-      status: "OPEN" as const,
-      urgency,
-      createdAt: now.toISOString().slice(0, 10),
       description: description.trim(),
-      timeline: [{ label: "Complaint raised", date: dateLabel }],
-    };
-
-    complaints.unshift(newComplaint);
-    notifyMockDataChanged();
-    setNewId(complaintId);
-    setSubmitted(true);
+      flat_id: myFlats?.[0]?.id ?? null,
+      category: category === AUTO ? null : category,
+      urgency: urgency === AUTO ? null : urgency,
+    });
+    setNewId(complaint.id);
   };
 
+  const resetForm = () => {
+    setNewId(null);
+    setTitle("");
+    setDescription("");
+    setCategory(AUTO);
+    setUrgency(AUTO);
+    setValidationError("");
+    raise.reset();
+  };
 
   return (
     <div className="max-w-lg">
       <PageHeader code="C-01 / RAISE COMPLAINT" title="Report an Issue" />
 
       <div className="bp-card p-6">
-        {submitted ? (
+        {newId ? (
           <div className="text-center py-6">
             <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-signal/10 flex items-center justify-center text-signal text-2xl">
               ✓
             </div>
-            <p className="font-display text-lg text-signal mb-1">Complaint {newId} raised</p>
+            <p className="font-display text-lg text-signal mb-1">Complaint raised</p>
+            <p className="text-xs font-mono text-ink-500 mb-3">{newId}</p>
             <p className="text-sm text-ink-300 mb-6">
               You'll be able to track its status from your complaint list.
             </p>
             <div className="flex gap-3 justify-center">
-              <button
-                className="btn-secondary"
-                onClick={() => {
-                  setSubmitted(false);
-                  setTitle("");
-                  setDescription("");
-                  setError("");
-                }}
-              >
+              <button className="btn-secondary" onClick={resetForm}>
                 Raise Another
               </button>
               <button className="btn-primary" onClick={() => navigate("/resident/complaints")}>
@@ -119,23 +90,26 @@ export default function RaiseComplaintPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
+            {validationError && (
               <div className="rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
-                {error}
+                {validationError}
               </div>
             )}
+            <ErrorBanner error={raise.error} />
+
             <div>
               <label className="label-field">Category</label>
               <select
                 className="input-field"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => setCategory(e.target.value as ComplaintCategory | typeof AUTO)}
               >
-                <option>Plumbing</option>
-                <option>Electrical/Mechanical</option>
-                <option>Common Area</option>
-                <option>Security</option>
-                <option>Other</option>
+                <option value={AUTO}>Detect from description</option>
+                {COMPLAINT_CATEGORIES.map((value) => (
+                  <option key={value} value={value}>
+                    {COMPLAINT_CATEGORY_LABELS[value]}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -162,22 +136,18 @@ export default function RaiseComplaintPage() {
               <select
                 className="input-field"
                 value={urgency}
-                onChange={(e) => setUrgency(e.target.value as "LOW" | "MEDIUM" | "URGENT")}
+                onChange={(e) => setUrgency(e.target.value as ComplaintUrgency | typeof AUTO)}
               >
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="URGENT">Urgent</option>
+                <option value={AUTO}>Detect from description</option>
+                {URGENCY_LEVELS.map((value) => (
+                  <option key={value} value={value}>
+                    {URGENCY_LABELS[value]}
+                  </option>
+                ))}
               </select>
             </div>
-            <div>
-              <label className="label-field">Attach Photo (optional)</label>
-              <input
-                type="file"
-                className="input-field file:mr-3 file:rounded-sm file:border-0 file:bg-blueprint-700 file:px-3 file:py-1.5 file:text-ink-100"
-              />
-            </div>
-            <button type="submit" className="btn-primary w-full">
-              Submit Complaint
+            <button type="submit" className="btn-primary w-full" disabled={raise.isPending}>
+              {raise.isPending ? "Submitting…" : "Submit Complaint"}
             </button>
           </form>
         )}
