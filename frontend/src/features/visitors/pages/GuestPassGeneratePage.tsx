@@ -1,116 +1,56 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { guestPasses, useMockData, notifyMockDataChanged, syncGuestPassesFromBackend } from "../../../api/mockData";
-import { useAuthStore } from "../../../store/authStore";
-import { api } from "../../../api/client";
+import QrCode from "../../../components/QrCode";
+import { ErrorBanner } from "../../../components/QueryState";
+import { useCreateGuestPass } from "../../../api/visitors";
+import { useMyFlats } from "../../../api/directory";
+import { formatDate, toDateInput } from "../../../lib/format";
+import type { GuestPass } from "../../../api/types";
 
-// Deterministic pseudo-QR pattern generated from the pass id — a visual
-// placeholder only. Swap for a real QR lib (e.g. qrcode.react) at integration.
-function PseudoQR({ seed }: { seed: string }) {
-  const cells = Array.from({ length: 64 }, (_, i) => {
-    const code = seed.charCodeAt(i % seed.length) + i;
-    return code % 3 !== 0;
-  });
-  return (
-    <div className="grid grid-cols-8 gap-0.5 w-32 h-32 bg-ink-100 p-2 rounded-sm">
-      {cells.map((filled, i) => (
-        <div key={i} className={filled ? "bg-blueprint-950" : "bg-ink-100"} />
-      ))}
-    </div>
-  );
+const PURPOSES = ["Personal visit", "Delivery", "Cab/Taxi", "Service provider"];
+
+function tomorrow(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return toDateInput(date.toISOString());
 }
 
 export default function GuestPassGeneratePage() {
-  useMockData();
-  const { user } = useAuthStore();
-  const [generatedId, setGeneratedId] = useState<string | null>(null);
+  const { data: myFlats, isPending: flatsPending } = useMyFlats();
+  const createPass = useCreateGuestPass();
+
+  const [pass, setPass] = useState<GuestPass | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [date, setDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  });
-  const [purpose, setPurpose] = useState("Personal visit");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [date, setDate] = useState(tomorrow);
+  const [purpose, setPurpose] = useState(PURPOSES[0]);
 
-  // Fetch user's flat_id from backend (needed for guest pass creation)
-  const [flatId, setFlatId] = useState<string | null>(null);
-
-  useEffect(() => {
-    // flatId is set at login time; fall back to fetching flats if session is old
-    if (user?.flatId) {
-      setFlatId(user.flatId);
-      return;
-    }
-    api.get("/v1/flats")
-      .then((res: any) => {
-        const flats: any[] = Array.isArray(res) ? res : (res?.data ?? []);
-        if (flats.length > 0) {
-          const match = user?.flatNo
-            ? flats.find((f) => f.label === user.flatNo)
-            : null;
-          setFlatId(match?.id ?? flats[0].id);
-        }
-      })
-      .catch(() => undefined);
-  }, [user]);
+  const flat = myFlats?.[0];
 
   async function handleGenerate(e: FormEvent) {
     e.preventDefault();
-    setError("");
-    setIsSubmitting(true);
+    if (!flat) return;
 
-    // Build valid_from (start of the selected date) and valid_until (end of day)
-    const validFrom = new Date(`${date}T00:00:00.000Z`).toISOString();
-    const validUntil = new Date(`${date}T23:59:59.000Z`).toISOString();
-
-    let passId: string | null = null;
-
-    if (flatId) {
-      try {
-        const res: any = await api.post("/v1/visitors/guest-passes", {
-          visitor_name: name,
-          visitor_phone: phone,
-          purpose,
-          flat_id: flatId,
-          valid_from: validFrom,
-          valid_until: validUntil,
-        });
-        if (res?.id) {
-          passId = res.id;
-          syncGuestPassesFromBackend([res]);
-        }
-      } catch (err: any) {
-        // Fall back to local mock if backend fails
-        if (err?.code && err.code !== "NETWORK_ERROR") {
-          setError(err.message || "Failed to generate pass.");
-          setIsSubmitting(false);
-          return;
-        }
-      }
-    }
-
-    // Fallback: create locally if backend unavailable or flat not resolved
-    if (!passId) {
-      passId = `GP-${2200 + guestPasses.length + 1}`;
-      guestPasses.unshift({
-        id: passId,
-        guestName: name,
-        purpose,
-        validOn: date,
-        flatNo: user?.flatNo || "B-304",
-        status: "ACTIVE",
-      });
-      notifyMockDataChanged();
-    }
-
-    setGeneratedId(passId);
-    setIsSubmitting(false);
+    // A pass is valid for the selected day in the society's local time. Using
+    // the browser's own midnight boundaries keeps "valid on the 14th" meaning
+    // the 14th on site rather than shifting by the UTC offset.
+    const created = await createPass.mutateAsync({
+      visitor_name: name.trim(),
+      visitor_phone: phone.trim(),
+      purpose,
+      flat_id: flat.id,
+      valid_from: new Date(`${date}T00:00:00`).toISOString(),
+      valid_until: new Date(`${date}T23:59:59`).toISOString(),
+    });
+    setPass(created);
   }
 
-  const pass = generatedId ? guestPasses.find((p) => p.id === generatedId) : null;
+  function reset() {
+    setPass(null);
+    setName("");
+    setPhone("");
+    createPass.reset();
+  }
 
   return (
     <div className="max-w-lg">
@@ -124,25 +64,43 @@ export default function GuestPassGeneratePage() {
         {pass ? (
           <div className="text-center py-4">
             <div className="flex justify-center mb-5">
-              <PseudoQR seed={pass.id} />
+              {/* The QR encodes the pass token, which is what the guard's
+                  verify endpoint takes. It is returned only to the resident
+                  who created the pass. */}
+              {pass.qr_token ? (
+                <QrCode value={pass.qr_token} />
+              ) : (
+                <p className="text-xs font-mono text-ink-500">
+                  This pass has no scannable token.
+                </p>
+              )}
             </div>
-            <p className="font-mono text-xs text-ink-500 mb-1">{pass.id}</p>
-            <p className="text-lg font-display font-semibold mb-1">{pass.guestName}</p>
-            <p className="text-sm text-ink-300 mb-6">Valid on {pass.validOn} · {pass.purpose}</p>
-            <button
-              className="btn-secondary"
-              onClick={() => { setGeneratedId(null); setName(""); setPhone(""); }}
-            >
+            {pass.qr_token && (
+              <p className="font-mono text-[10px] text-ink-500 mb-3 break-all px-4">
+                {pass.qr_token}
+              </p>
+            )}
+            <p className="text-lg font-display font-semibold mb-1">{pass.visitor_name}</p>
+            <p className="text-sm text-ink-300 mb-6">
+              Valid on {formatDate(pass.valid_from)} · {pass.purpose || "Visit"}
+            </p>
+            <button className="btn-secondary" onClick={reset}>
               Generate Another
             </button>
           </div>
         ) : (
           <form onSubmit={handleGenerate} className="space-y-5">
-            {error && (
-              <div className="rounded-sm border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400">
-                {error}
+            <ErrorBanner error={createPass.error} />
+
+            {/* A pass belongs to a flat, so a caller with none cannot raise
+                one. Saying so beats a rejected submit. */}
+            {!flatsPending && !flat && (
+              <div className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-300">
+                Your account is not linked to a flat, so guest passes cannot be issued. Ask a
+                society official to link your flat.
               </div>
             )}
+
             <div>
               <label className="label-field">Guest Name</label>
               <input
@@ -164,11 +122,14 @@ export default function GuestPassGeneratePage() {
             </div>
             <div>
               <label className="label-field">Purpose of Visit</label>
-              <select value={purpose} onChange={(e) => setPurpose(e.target.value)} className="input-field">
-                <option>Personal visit</option>
-                <option>Delivery</option>
-                <option>Cab/Taxi</option>
-                <option>Service provider</option>
+              <select
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                className="input-field"
+              >
+                {PURPOSES.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -181,8 +142,16 @@ export default function GuestPassGeneratePage() {
                 className="input-field"
               />
             </div>
-            <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Generating…" : "Generate Pass"}
+            <div>
+              <label className="label-field">Flat</label>
+              <input className="input-field" value={flat?.label ?? "—"} readOnly disabled />
+            </div>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={createPass.isPending || !flat}
+            >
+              {createPass.isPending ? "Generating…" : "Generate Pass"}
             </button>
           </form>
         )}
