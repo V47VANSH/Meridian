@@ -7,6 +7,7 @@ import { NAV_BY_ROLE } from "../lib/nav";
 import { logout as revokeSession } from "../api/auth";
 import logo from "../assets/logo.svg";
 import AiChatBox from "./AiChatBox";
+import NotificationBell from "./NotificationBell";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuthStore();
@@ -63,12 +64,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <p className="text-[11px] font-mono uppercase tracking-wider text-ink-500 mb-3">
             {ROLE_LABELS[user.role]}
           </p>
-          <button
-            onClick={() => void handleLogout()}
-            className="btn-secondary w-full text-xs"
-          >
-            Log Out
-          </button>
+          <div className="space-y-2">
+            <NotificationBell />
+            <button
+              onClick={() => void handleLogout()}
+              className="btn-secondary w-full text-xs"
+            >
+              Log Out
+            </button>
+          </div>
         </div>
       </aside>
 
