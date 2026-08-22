@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "../../api/client";
 import { useAuthStore } from "../../store/authStore";
 import { Complaint, complaints, notifyMockDataChanged } from "../../api/mockData";
 import StatusBadge from "../StatusBadge";
