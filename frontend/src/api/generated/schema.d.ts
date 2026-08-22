@@ -195,6 +195,30 @@ export interface paths {
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
+        /**
+         * Add a new user to the society (Society Official)
+         * @description Society official registers a new user into the society database.
+         */
+        post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List society audit log history (Society Official)
+         * @description Return audit log entries for the caller's society.
+         */
+        get: operations["list_audit_logs_api_v1_audit_logs_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -361,6 +385,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/maintenance/invoices/{invoice_id}/remind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a payment reminder for an invoice
+         * @description Send a payment reminder notification to occupants linked to the invoice flat.
+         */
+        post: operations["remind_invoice_api_v1_maintenance_invoices__invoice_id__remind_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/invoices/{invoice_id}/offline-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record an offline maintenance payment (Society Official)
+         * @description Manually record a cash/cheque/bank-transfer payment and mark the invoice paid.
+         */
+        post: operations["record_offline_payment_api_v1_maintenance_invoices__invoice_id__offline_payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get payment details / receipt
+         * @description Fetch details/receipt for a single payment.
+         */
+        get: operations["get_payment_api_v1_maintenance_payments__payment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/complaints": {
         parameters: {
             query?: never;
@@ -386,6 +470,26 @@ export interface paths {
          *     never depends on the ML service being up.
          */
         post: operations["create_complaint_api_v1_complaints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/complaints/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summary statistics of complaints
+         * @description Return aggregated counts of complaints by status and urgency.
+         */
+        get: operations["complaint_summary_api_v1_complaints_summary_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -456,6 +560,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/complaints/{complaint_id}/priority": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update complaint priority / urgency level
+         * @description Reprioritise a complaint (HIGH, MEDIUM, LOW) manually.
+         */
+        patch: operations["update_priority_api_v1_complaints__complaint_id__priority_patch"];
         trace?: never;
     };
     "/api/v1/facilities": {
@@ -555,6 +679,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a booking confirmation details
+         * @description Fetch details of a single booking.
+         */
+        get: operations["get_booking_api_v1_bookings__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/facilities/{facility_id}/slots/{slot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a slot's availability status (Society Official)
+         * @description Block or unblock a time slot on the facility schedule.
+         */
+        patch: operations["update_slot_api_v1_facilities__facility_id__slots__slot_id__patch"];
+        trace?: never;
+    };
     "/api/v1/visitors/guest-passes": {
         parameters: {
             query?: never;
@@ -620,6 +784,26 @@ export interface paths {
          * @description Cancel an unused pass, for example when a visit is called off.
          */
         post: operations["revoke_guest_pass_api_v1_visitors_guest_passes__pass_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visitors/guest-passes/{pass_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get details of a guest pass
+         * @description Fetch details of a guest pass. Includes token if caller is creator or official.
+         */
+        get: operations["get_guest_pass_api_v1_visitors_guest_passes__pass_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -696,6 +880,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sos/{incident_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get details of an SOS incident
+         * @description Fetch status and details of an SOS incident.
+         */
+        get: operations["get_sos_api_v1_sos__incident_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/announcements": {
         parameters: {
             query?: never;
@@ -760,6 +964,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/resident": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get resident dashboard data
+         * @description Aggregate dues, complaints, bookings and notices for the resident dashboard.
+         */
+        get: operations["resident_dashboard_api_v1_dashboard_resident_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/official": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get official dashboard metrics
+         * @description Aggregate society-wide metrics for the official dashboard.
+         */
+        get: operations["official_dashboard_api_v1_dashboard_official_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/non-resident": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get non-resident owner dashboard data
+         * @description Aggregate dues, complaints, and notices for non-resident owners.
+         */
+        get: operations["non_resident_dashboard_api_v1_dashboard_non_resident_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Process natural language text prompt with Gemini AI
+         * @description Accept natural language text from user, process via Gemini API (or fallback), and return reply + action card.
+         */
+        post: operations["process_ai_prompt_api_v1_ai_assistant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -784,6 +1068,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AIAssistantRequest */
+        AIAssistantRequest: {
+            /**
+             * Prompt
+             * @description Natural text prompt from user
+             */
+            prompt: string;
+            /**
+             * Context
+             * @description Optional client UI context
+             */
+            context?: Record<string, never> | null;
+        };
+        /** AIAssistantResponse */
+        AIAssistantResponse: {
+            /**
+             * Reply
+             * @description Conversational text response generated by AI
+             */
+            reply: string;
+            /**
+             * Card Type
+             * @description UI card widget type to render, if action requested
+             */
+            card_type?: string | null;
+            /**
+             * Action Data
+             * @description Structured parameters for the action widget
+             */
+            action_data?: Record<string, never> | null;
+            /**
+             * Provider
+             * @description Provider used: 'gemini' or 'fallback'
+             * @default gemini
+             */
+            provider: string;
+        };
         /** AnnouncementCreate */
         AnnouncementCreate: {
             /** Title */
@@ -818,6 +1139,28 @@ export interface components {
          * @enum {string}
          */
         Audience: "ALL" | "RESIDENTS" | "NON_RESIDENT_OWNERS" | "STAFF";
+        /** AuditLogResponse */
+        AuditLogResponse: {
+            /** Id */
+            id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Actor */
+            actor: string;
+            /** Action */
+            action: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Entity Id */
+            entity_id: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** BookingCreate */
         BookingCreate: {
             /** Slot Id */
@@ -896,6 +1239,15 @@ export interface components {
              */
             changed_at: string;
         };
+        /** ComplaintPriorityUpdate */
+        ComplaintPriorityUpdate: {
+            urgency: components["schemas"]["UrgencyLevel"];
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
         /** ComplaintResponse */
         ComplaintResponse: {
             /** Id */
@@ -947,6 +1299,21 @@ export interface components {
              * @default
              */
             note: string;
+        };
+        /** ComplaintSummaryResponse */
+        ComplaintSummaryResponse: {
+            /** Total Complaints */
+            total_complaints: number;
+            /** Open Count */
+            open_count: number;
+            /** In Progress Count */
+            in_progress_count: number;
+            /** Resolved Count */
+            resolved_count: number;
+            /** Closed Count */
+            closed_count: number;
+            /** High Urgency Count */
+            high_urgency_count: number;
         };
         /**
          * ErrorResponse
@@ -1237,6 +1604,14 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** NonResidentDashboardResponse */
+        NonResidentDashboardResponse: {
+            pending_invoice?: components["schemas"]["InvoiceResponse"] | null;
+            /** Open Complaints */
+            open_complaints?: components["schemas"]["ComplaintResponse"][];
+            /** Latest Announcements */
+            latest_announcements?: components["schemas"]["AnnouncementResponse"][];
+        };
         /** NotificationResponse */
         NotificationResponse: {
             /** Id */
@@ -1264,6 +1639,36 @@ export interface components {
          * @enum {string}
          */
         OccupancyType: "OWNER_OCCUPIED" | "RENTED" | "VACANT";
+        /** OfficialDashboardResponse */
+        OfficialDashboardResponse: {
+            /** Open Complaints Count */
+            open_complaints_count: number;
+            /** Overdue Invoices Count */
+            overdue_invoices_count: number;
+            /** Pending Dues Residents Count */
+            pending_dues_residents_count: number;
+            /** Active Bookings Count */
+            active_bookings_count: number;
+            /** Active Sos Count */
+            active_sos_count: number;
+            /** Total Flats */
+            total_flats: number;
+        };
+        /** OfflinePaymentRequest */
+        OfflinePaymentRequest: {
+            /**
+             * Method
+             * @description Payment method: CASH, CHEQUE, BANK_TRANSFER, etc.
+             * @default CASH
+             */
+            method: string;
+            /**
+             * Reference Note
+             * @description Receipt or reference number
+             * @default
+             */
+            reference_note: string;
+        };
         /**
          * PaymentConfirmRequest
          * @description Client-side confirmation, verified by signature before it is trusted.
@@ -1377,6 +1782,16 @@ export interface components {
          * @enum {string}
          */
         Relation: "OWNER" | "RESIDENT_TENANT";
+        /** ResidentDashboardResponse */
+        ResidentDashboardResponse: {
+            pending_invoice?: components["schemas"]["InvoiceResponse"] | null;
+            /** Open Complaints */
+            open_complaints?: components["schemas"]["ComplaintResponse"][];
+            /** Upcoming Bookings */
+            upcoming_bookings?: components["schemas"]["BookingResponse"][];
+            /** Latest Announcements */
+            latest_announcements?: components["schemas"]["AnnouncementResponse"][];
+        };
         /** RiskScoreResponse */
         RiskScoreResponse: {
             /** Flat Id */
@@ -1483,6 +1898,11 @@ export interface components {
              */
             is_available: boolean;
         };
+        /** SlotUpdate */
+        SlotUpdate: {
+            /** Is Bookable */
+            is_bookable: boolean;
+        };
         /** TenantCreate */
         TenantCreate: {
             /** Name */
@@ -1535,6 +1955,43 @@ export interface components {
          * @enum {string}
          */
         UrgencyLevel: "LOW" | "MEDIUM" | "HIGH";
+        /** UserCreate */
+        UserCreate: {
+            /**
+             * Email
+             * Format: email
+             * @description Login email, unique within the society
+             */
+            email: string;
+            /**
+             * Password
+             * @description Initial account password
+             * @default Password123
+             */
+            password: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /**
+             * @description Assigned role
+             * @default RESIDENT_OWNER
+             */
+            role: components["schemas"]["Role"];
+            /**
+             * Flat Id
+             * @description Optional flat ID to link the user to immediately
+             */
+            flat_id?: string | null;
+            /**
+             * @description Relation to flat (OWNER or RESIDENT_TENANT)
+             * @default OWNER
+             */
+            relation: components["schemas"]["Relation"];
+        };
         /** UserResponse */
         UserResponse: {
             /** Id */
@@ -2110,6 +2567,104 @@ export interface operations {
             };
         };
     };
+    create_user_api_v1_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Email already exists in this society */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_logs_api_v1_audit_logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogResponse"][];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_invoices_api_v1_maintenance_invoices_get: {
         parameters: {
             query?: {
@@ -2575,6 +3130,202 @@ export interface operations {
             };
         };
     };
+    remind_invoice_api_v1_maintenance_invoices__invoice_id__remind_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invoice not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invoice is already paid */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_offline_payment_api_v1_maintenance_invoices__invoice_id__offline_payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfflinePaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invoice not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invoice is already paid */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_api_v1_maintenance_payments__payment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Payment record not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_complaints_api_v1_complaints_get: {
         parameters: {
             query?: {
@@ -2678,6 +3429,44 @@ export interface operations {
             };
             /** @description Title or description too short */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    complaint_summary_api_v1_complaints_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintSummaryResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2874,6 +3663,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_priority_api_v1_complaints__complaint_id__priority_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintPriorityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Complaint not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3285,6 +4136,127 @@ export interface operations {
             };
         };
     };
+    get_booking_api_v1_bookings__booking_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Booking not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_slot_api_v1_facilities__facility_id__slots__slot_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                facility_id: string;
+                slot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Facility or slot not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_guest_passes_api_v1_visitors_guest_passes_get: {
         parameters: {
             query?: {
@@ -3502,6 +4474,64 @@ export interface operations {
             };
             /** @description Pass is already used or revoked */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guest_pass_api_v1_visitors_guest_passes__pass_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pass_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestPassResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Pass not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3755,6 +4785,64 @@ export interface operations {
             };
         };
     };
+    get_sos_api_v1_sos__incident_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SOSResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Incident not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_announcements_api_v1_announcements_get: {
         parameters: {
             query?: never;
@@ -3948,6 +5036,162 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resident_dashboard_api_v1_dashboard_resident_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResidentDashboardResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    official_dashboard_api_v1_dashboard_official_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialDashboardResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    non_resident_dashboard_api_v1_dashboard_non_resident_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NonResidentDashboardResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Role is not permitted to perform this action */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    process_ai_prompt_api_v1_ai_assistant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIAssistantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIAssistantResponse"];
+                };
+            };
+            /** @description Missing or invalid access token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Prompt validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
