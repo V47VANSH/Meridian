@@ -1,124 +1,123 @@
-import { useState } from "react";
-import { Booking, bookings, residents, announcements, notifyMockDataChanged } from "../../api/mockData";
+import { useQuery } from "@tanstack/react-query";
 import StatusBadge from "../StatusBadge";
+import { ErrorBanner, LoadingState } from "../QueryState";
+import { api } from "../../api/client";
+import { bookingKeys, useCancelBooking } from "../../api/bookings";
+import { useUserNames } from "../../api/directory";
+import { formatDate, formatDateTime } from "../../lib/format";
+import type { Booking } from "../../api/types";
 
 interface BookingDetailModalProps {
-  booking: Booking;
+  bookingId: string;
   onClose: () => void;
 }
 
-export default function BookingDetailModal({ booking, onClose }: BookingDetailModalProps) {
-  const [reason, setReason] = useState("");
-  const resident = residents.find((r) => r.flatNo === booking.flatNo);
+export default function BookingDetailModal({ bookingId, onClose }: BookingDetailModalProps) {
+  const {
+    data: booking,
+    isPending,
+    error,
+  } = useQuery({
+    queryKey: [...bookingKeys.all, "detail", bookingId],
+    queryFn: () => api.get<Booking>(`/v1/bookings/${bookingId}`),
+  });
 
-  const handleCancelBooking = () => {
-    const idx = bookings.findIndex((b) => b.id === booking.id);
-    if (idx !== -1) {
-      // Remove reservation
-      bookings.splice(idx, 1);
+  const userName = useUserNames();
+  const cancelBooking = useCancelBooking();
 
-      // Post notification to announcement feed
-      announcements.unshift({
-        id: `ANN-${Math.floor(40 + Math.random() * 20)}`,
-        title: `CANCELLED: ${booking.facility} Reservation`,
-        body: `Notice for Flat ${booking.flatNo}: Your reservation for the ${booking.facility} on ${booking.date} (${booking.slot}) has been cancelled by the society office. Reason: "${reason || "Scheduling conflict/maintenance"}".`,
-        postedBy: "Society Management",
-        postedAt: new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
-      });
-
-      notifyMockDataChanged();
-      onClose();
-    }
-  };
+  const isCancelled = booking?.status === "CANCELLED";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div onClick={onClose} className="absolute inset-0 bg-blueprint-950/80 backdrop-blur-xs"></div>
+      <div onClick={onClose} className="absolute inset-0 bg-blueprint-950/80 backdrop-blur-xs" />
 
-      {/* Modal Box */}
       <div className="relative w-full max-w-md bg-blueprint-900 border border-blueprint-700 p-6 rounded-sm shadow-2xl bp-canvas z-10">
-        {/* Drafting corner ticks */}
-        <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-blueprint-500"></div>
-        <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-blueprint-500"></div>
+        <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-blueprint-500" />
+        <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-blueprint-500" />
 
-        {/* Header */}
         <div className="flex justify-between items-start border-b border-blueprint-700 pb-3 mb-4">
           <div>
-            <p className="bp-eyebrow font-mono text-[10px] tracking-wider text-signal">{booking.id} / RESERVATION INFO</p>
-            <h3 className="font-display font-semibold text-base text-ink-100 mt-1">{booking.facility} Slot</h3>
+            <p className="bp-eyebrow font-mono text-[10px] tracking-wider text-signal">
+              RESERVATION INFO
+            </p>
+            <h3 className="font-display font-semibold text-base text-ink-100 mt-1">
+              {booking?.facility_name ?? "Facility"} Slot
+            </h3>
           </div>
-          <button onClick={onClose} className="text-ink-500 hover:text-signal font-mono text-sm leading-none p-1">
+          <button
+            onClick={onClose}
+            className="text-ink-500 hover:text-signal font-mono text-sm leading-none p-1"
+          >
             [×] Close
           </button>
         </div>
 
-        {/* Booking Details */}
-        <div className="border border-blueprint-700 p-3 rounded-xs bg-blueprint-950/40 font-mono text-xs mb-4 space-y-1.5">
-          <div className="flex justify-between">
-            <span className="text-ink-500">Date:</span>
-            <span className="text-ink-100 font-semibold">{booking.date}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-ink-500">Time Slot:</span>
-            <span className="text-ink-100 font-semibold">{booking.slot}</span>
-          </div>
-        </div>
+        {isPending && <LoadingState label="Loading reservation…" />}
+        {error && <ErrorBanner error={error} />}
 
-        {/* Resident profile details */}
-        <div className="mb-5 border border-blueprint-700/60 p-3.5 rounded-xs bg-blueprint-950/20 text-xs font-body">
-          <p className="font-mono text-[9px] uppercase tracking-wider text-ink-500 mb-2 font-bold">Resident Profile</p>
-          {resident ? (
-            <div className="space-y-1.5 font-mono">
+        {booking && (
+          <>
+            <div className="border border-blueprint-700 p-3 rounded-xs bg-blueprint-950/40 font-mono text-xs mb-4 space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-ink-500">Name:</span>
-                <span className="text-ink-100">{resident.name}</span>
+                <span className="text-ink-500">Booking:</span>
+                <span className="text-ink-100">{booking.id}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ink-500">Flat Code:</span>
-                <span className="text-ink-100">{resident.flatNo}</span>
+                <span className="text-ink-500">Booked by:</span>
+                <span className="text-ink-100 font-semibold">{userName(booking.booked_by)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ink-500">Contact:</span>
-                <span className="text-ink-100">{resident.contact}</span>
+                <span className="text-ink-500">Date:</span>
+                <span className="text-ink-100 font-semibold">{formatDate(booking.date)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-ink-500">Type:</span>
-                <span className="text-ink-100">{resident.type}</span>
+                <span className="text-ink-500">Time Slot:</span>
+                <span className="text-ink-100 font-semibold">
+                  {booking.start_time}–{booking.end_time}
+                </span>
               </div>
-              <div className="flex justify-between items-center pt-0.5">
-                <span className="text-ink-500">Dues Status:</span>
-                <StatusBadge status={resident.duesStatus} />
+              <div className="flex justify-between items-center">
+                <span className="text-ink-500">Status:</span>
+                <StatusBadge status={booking.status} />
               </div>
+              {booking.cancelled_at && (
+                <div className="flex justify-between">
+                  <span className="text-ink-500">Cancelled:</span>
+                  <span className="text-ink-100">{formatDateTime(booking.cancelled_at)}</span>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="text-ink-500 font-mono italic">No associated resident found for flat {booking.flatNo}.</p>
-          )}
-        </div>
 
-        {/* Cancel Booking Form */}
-        <div className="border-t border-blueprint-700 pt-4 bg-blueprint-950/40 -mx-6 -mb-6 p-6 rounded-b-sm">
-          <p className="bp-eyebrow text-[10px] mb-2.5">Cancel Reservation</p>
-          <div className="space-y-3">
-            <div>
-              <label className="label-field text-[10px]">Reason of Cancellation</label>
-              <input
-                required
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="input-field py-1 text-xs"
-                placeholder="e.g. Facility closed for repair work"
-              />
+            <div className="border-t border-blueprint-700 pt-4">
+              <ErrorBanner error={cancelBooking.error} />
+              {isCancelled ? (
+                <p className="text-xs font-mono text-ink-500 text-center py-2">
+                  This reservation is already cancelled and its slot is free again.
+                </p>
+              ) : (
+                <>
+                  {/* Cancelling releases the slot server-side. The old version
+                      removed the row locally and posted a fabricated
+                      announcement, so the slot stayed unbookable. */}
+                  <button
+                    onClick={() =>
+                      cancelBooking.mutate(booking.id, { onSuccess: onClose })
+                    }
+                    disabled={cancelBooking.isPending}
+                    className="w-full btn-primary py-1.5 text-xs bg-red-600 hover:bg-red-500 text-ink-100 border-0 disabled:opacity-50"
+                  >
+                    {cancelBooking.isPending
+                      ? "Cancelling…"
+                      : "Cancel Reservation & Release Slot"}
+                  </button>
+                  <p className="mt-2 text-[10px] font-mono text-ink-500 text-center">
+                    The resident is notified through their bookings list.
+                  </p>
+                </>
+              )}
             </div>
-            <button
-              onClick={handleCancelBooking}
-              disabled={!reason}
-              className="w-full btn-primary py-1.5 text-xs bg-red-600 hover:bg-emerald-500 text-ink-100 border-0 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              Cancel Reservation & Notify Resident
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

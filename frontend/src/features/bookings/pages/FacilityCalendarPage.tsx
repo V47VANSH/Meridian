@@ -1,161 +1,134 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "../../../components/PageHeader";
-import { bookings, notifyMockDataChanged } from "../../../api/mockData";
-import { useAuthStore } from "../../../store/authStore";
-import { api } from "../../../api/client";
+import EmptyState from "../../../components/EmptyState";
+import { ErrorBanner, QueryState } from "../../../components/QueryState";
+import { useCreateBooking, useFacilities, useSlots } from "../../../api/bookings";
+import { toDateInput } from "../../../lib/format";
 
-interface BackendFacility {
-  id: string;
-  name: string;
-}
-
-interface BackendSlot {
-  id: string;
-  start_time: string;
-  end_time: string;
-  is_available: boolean;
-  is_bookable: boolean;
-  date: string;
+/** Tomorrow, as `YYYY-MM-DD` — the day the calendar opens on. */
+function defaultDate(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return toDateInput(date.toISOString());
 }
 
 export default function FacilityCalendarPage() {
-  const { user } = useAuthStore();
-  const [facilities, setFacilities] = useState<BackendFacility[]>([]);
-  const [selectedFacilityId, setSelectedFacilityId] = useState<string>("");
-  const [slots, setSlots] = useState<BackendSlot[]>([]);
-  const [date, setDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  });
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState("");
+  const [facilityId, setFacilityId] = useState<string | null>(null);
+  const [date, setDate] = useState(defaultDate);
+  const [booked, setBooked] = useState<string | null>(null);
 
-  // Fetch all facilities on mount
+  const facilities = useFacilities();
+  const slots = useSlots(facilityId, date);
+  const createBooking = useCreateBooking();
+
+  // Select the first facility as soon as the list arrives, so the grid is not
+  // blank on load.
   useEffect(() => {
-    api.get("/v1/facilities")
-      .then((res: any) => {
-        const items: BackendFacility[] = Array.isArray(res) ? res : (res?.data ?? []);
-        setFacilities(items);
-        if (items.length > 0) setSelectedFacilityId(items[0].id);
-      })
-      .catch(() => undefined);
-  }, []);
-
-  // Fetch slots whenever facility or date changes
-  useEffect(() => {
-    if (!selectedFacilityId) return;
-    setLoadingSlots(true);
-    setStatusMsg("");
-    api.get(`/v1/facilities/${selectedFacilityId}/slots?date=${date}`)
-      .then((res: any) => {
-        const items: BackendSlot[] = Array.isArray(res) ? res : (res?.data ?? []);
-        setSlots(items);
-      })
-      .catch(() => setSlots([]))
-      .finally(() => setLoadingSlots(false));
-  }, [selectedFacilityId, date]);
-
-  const handleBook = async (slot: BackendSlot) => {
-    if (!slot.is_available) return;
-    setBookingId(slot.id);
-    setStatusMsg("");
-    try {
-      const res: any = await api.post("/v1/bookings", { slot_id: slot.id });
-      // Add to local bookings store so MyBookingsPage & ScheduleManagement update
-      const facility = facilities.find((f) => f.id === selectedFacilityId);
-      bookings.unshift({
-        id: res.id ?? `BK-${Date.now()}`,
-        facility: facility?.name ?? "Facility",
-        date: slot.date,
-        slot: `${slot.start_time}–${slot.end_time}`,
-        bookedBy: user?.name ?? "Resident",
-        flatNo: user?.flatNo ?? "B-304",
-      });
-      notifyMockDataChanged();
-      setStatusMsg(`✓ Booked ${slot.start_time}–${slot.end_time}`);
-      // Refresh slots to show updated availability
-      const refreshed: any = await api.get(`/v1/facilities/${selectedFacilityId}/slots?date=${date}`);
-      const refreshedItems: BackendSlot[] = Array.isArray(refreshed) ? refreshed : (refreshed?.data ?? []);
-      setSlots(refreshedItems);
-    } catch (err: any) {
-      setStatusMsg(err?.message ?? "Booking failed. Slot may already be taken.");
-    } finally {
-      setBookingId(null);
+    if (!facilityId && facilities.data && facilities.data.length > 0) {
+      setFacilityId(facilities.data[0].id);
     }
-  };
+  }, [facilities.data, facilityId]);
 
-  const selectedFacility = facilities.find((f) => f.id === selectedFacilityId);
+  const selectedFacility = facilities.data?.find((f) => f.id === facilityId);
+  const rows = slots.data ?? [];
+
+  function handleBook(slotId: string, label: string) {
+    setBooked(null);
+    createBooking.mutate(slotId, { onSuccess: () => setBooked(label) });
+  }
 
   return (
     <div>
       <PageHeader
         code="B-01 / FACILITY CALENDAR"
         title="Book a Shared Facility"
-        description="Pick a slot to avoid overcrowding — bookings update live for everyone viewing this grid."
+        description="Pick a slot to avoid overcrowding — availability is read live from the society's schedule."
       />
 
       <div className="flex gap-4 mb-6">
         <select
-          value={selectedFacilityId}
-          onChange={(e) => setSelectedFacilityId(e.target.value)}
+          value={facilityId ?? ""}
+          onChange={(e) => {
+            setFacilityId(e.target.value);
+            setBooked(null);
+          }}
           className="input-field w-48"
         >
-          {facilities.length === 0 && <option value="">Loading…</option>}
-          {facilities.map((f) => (
-            <option key={f.id} value={f.id}>{f.name}</option>
+          {facilities.isPending && <option value="">Loading…</option>}
+          {(facilities.data ?? []).map((facility) => (
+            <option key={facility.id} value={facility.id}>
+              {facility.name}
+            </option>
           ))}
         </select>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input-field w-48" />
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setBooked(null);
+          }}
+          className="input-field w-48"
+        />
       </div>
 
-      {statusMsg && (
-        <div className={`mb-4 text-sm px-4 py-2 rounded-sm border font-mono ${
-          statusMsg.startsWith("✓")
-            ? "border-signal/40 bg-signal/10 text-signal"
-            : "border-red-500/40 bg-red-500/10 text-red-400"
-        }`}>
-          {statusMsg}
-        </div>
+      {selectedFacility?.rules && (
+        <p className="mb-4 text-xs font-mono text-ink-500">{selectedFacility.rules}</p>
       )}
 
-      <div className="bp-card p-5">
-        {loadingSlots ? (
-          <p className="text-center text-ink-500 font-mono py-8">Loading slots…</p>
-        ) : slots.length === 0 ? (
-          <p className="text-center text-ink-500 font-mono py-8">
-            No slots published for {selectedFacility?.name ?? "this facility"} on {date}.<br />
-            <span className="text-xs">The society official needs to publish slots first.</span>
-          </p>
-        ) : (
-          <div className="grid grid-cols-5 gap-3">
-            {slots.map((slot) => {
-              const taken = !slot.is_available;
-              const isBooking = bookingId === slot.id;
-              return (
-                <button
-                  key={slot.id}
-                  disabled={taken || isBooking}
-                  onClick={() => handleBook(slot)}
-                  className={`rounded-sm border px-3 py-4 text-center text-sm transition ${
-                    taken
-                      ? "border-blueprint-700 bg-blueprint-900 text-ink-500 cursor-not-allowed"
-                      : isBooking
-                      ? "border-signal/40 bg-signal/10 text-signal cursor-wait"
-                      : "border-blueprint-600 hover:border-signal hover:text-signal"
-                  }`}
-                >
-                  {slot.start_time}–{slot.end_time}
-                  <span className="block mt-1 text-[11px] font-mono text-ink-500">
-                    {isBooking ? "Booking…" : taken ? "Booked" : "Available"}
-                  </span>
-                </button>
-              );
-            })}
+      <div className="mb-4 space-y-3">
+        <ErrorBanner error={createBooking.error} />
+        {booked && (
+          <div className="rounded-sm border border-signal/40 bg-signal/10 px-4 py-2 text-sm font-mono text-signal">
+            ✓ Booked {booked}
           </div>
         )}
       </div>
+
+      <QueryState
+        isLoading={facilities.isPending || slots.isPending}
+        error={facilities.error ?? slots.error}
+        onRetry={() => slots.refetch()}
+        loadingLabel="Loading the calendar…"
+      >
+        <div className="bp-card p-5">
+          {rows.length === 0 ? (
+            <EmptyState
+              title={`No slots published for ${selectedFacility?.name ?? "this facility"} on ${date}`}
+              hint="A society official publishes the schedule from Booking Schedule."
+            />
+          ) : (
+            <div className="grid grid-cols-5 gap-3">
+              {rows.map((slot) => {
+                const label = `${slot.start_time}–${slot.end_time}`;
+                // A slot is unavailable either because it is already booked or
+                // because an official has blocked it off.
+                const blocked = !slot.is_bookable;
+                const taken = !slot.is_available;
+                const disabled = blocked || taken || createBooking.isPending;
+
+                return (
+                  <button
+                    key={slot.id}
+                    disabled={disabled}
+                    onClick={() => handleBook(slot.id, label)}
+                    className={`rounded-sm border px-3 py-4 text-center text-sm transition ${
+                      disabled
+                        ? "border-blueprint-700 bg-blueprint-900 text-ink-500 cursor-not-allowed"
+                        : "border-blueprint-600 hover:border-signal hover:text-signal"
+                    }`}
+                  >
+                    {label}
+                    <span className="block mt-1 text-[11px] font-mono text-ink-500">
+                      {blocked ? "Blocked" : taken ? "Booked" : "Available"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </QueryState>
     </div>
   );
 }
