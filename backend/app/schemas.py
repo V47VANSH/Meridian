@@ -135,6 +135,17 @@ class FlatCreate(BaseModel):
     occupancy_type: OccupancyType = OccupancyType.OWNER_OCCUPIED
 
 
+class FlatOccupant(BaseModel):
+    """A person linked to a flat, and how."""
+
+    user_id: str
+    full_name: str
+    email: str
+    phone: str
+    role: str
+    relation: str = Field(..., description="OWNER or RESIDENT_TENANT")
+
+
 class FlatResponse(BaseModel):
     model_config = ORM
 
@@ -144,6 +155,10 @@ class FlatResponse(BaseModel):
     flat_number: str
     occupancy_type: str
     label: str = Field(..., description="Display identifier, e.g. B-304")
+    occupants: list[FlatOccupant] = Field(
+        default_factory=list,
+        description="Residents linked to this flat; the resident directory is built from these",
+    )
 
 
 class FlatAssignRequest(BaseModel):

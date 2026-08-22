@@ -106,3 +106,36 @@ def test_flats_defaults_to_the_whole_society(client: TestClient, login):
     response = client.get("/api/v1/flats", headers=login("resident"))
     assert response.status_code == 200, response.text
     assert {f["label"] for f in response.json()} == {"A-102", "B-304"}
+
+
+def test_flat_list_carries_its_occupants(client: TestClient, society: dict, login):
+    """The directory is built from these links, so the flat list must expose them."""
+    response = client.get("/api/v1/flats", headers=login("official"))
+    assert response.status_code == 200, response.text
+
+    by_label = {f["label"]: f for f in response.json()}
+
+    occupants = by_label["B-304"]["occupants"]
+    assert len(occupants) == 1
+    assert occupants[0]["user_id"] == society["resident_id"]
+    assert occupants[0]["full_name"] == "Arjun Rao"
+    assert occupants[0]["email"] == "resident@greenvalley.example"
+    assert occupants[0]["relation"] == "OWNER"
+
+
+def test_newly_linked_occupant_appears_on_the_flat(client: TestClient, society: dict, login):
+    """Linking an occupant is reflected in the next read of the flat list."""
+    official = login("official")
+    link = client.post(
+        f"/api/v1/flats/{society['flat_b_id']}/occupants",
+        json={"user_id": society["neighbour_id"], "relation": "RESIDENT_TENANT"},
+        headers=official,
+    )
+    assert link.status_code == 200, link.text
+
+    flats = client.get("/api/v1/flats", headers=official).json()
+    b304 = next(f for f in flats if f["label"] == "B-304")
+
+    relations = {o["user_id"]: o["relation"] for o in b304["occupants"]}
+    assert relations[society["neighbour_id"]] == "RESIDENT_TENANT"
+    assert relations[society["resident_id"]] == "OWNER"

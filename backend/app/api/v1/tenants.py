@@ -18,6 +18,7 @@ from app.schemas import (
     ErrorResponse,
     FlatAssignRequest,
     FlatCreate,
+    FlatOccupant,
     FlatResponse,
     MessageResponse,
     TenantCreate,
@@ -36,7 +37,32 @@ AUTH_ERRORS = {
 }
 
 
-def _flat_response(flat: Flat) -> FlatResponse:
+def _flat_response(db: Session, flat: Flat) -> FlatResponse:
+    """Serialise a flat together with the people linked to it.
+
+    Every record in the system points at a flat by id, so a directory that
+    cannot say who lives in B-304 forces each screen to invent an answer.
+    """
+    links = db.scalars(
+        select(FlatOwnership).where(FlatOwnership.flat_id == flat.id)
+    ).all()
+
+    occupants = []
+    for link in links:
+        occupant = db.get(User, link.user_id)
+        if occupant is None:
+            continue
+        occupants.append(
+            FlatOccupant(
+                user_id=occupant.id,
+                full_name=occupant.full_name,
+                email=occupant.email,
+                phone=occupant.phone,
+                role=occupant.role,
+                relation=link.relation,
+            )
+        )
+
     return FlatResponse(
         id=flat.id,
         tenant_id=flat.tenant_id,
@@ -44,6 +70,7 @@ def _flat_response(flat: Flat) -> FlatResponse:
         flat_number=flat.flat_number,
         occupancy_type=flat.occupancy_type,
         label=flat.label,
+        occupants=occupants,
     )
 
 
@@ -141,7 +168,7 @@ def create_flat(
     )
     db.commit()
     db.refresh(flat)
-    return _flat_response(flat)
+    return _flat_response(db, flat)
 
 
 @router.get(
@@ -175,7 +202,7 @@ def list_flats(
             Flat.id.in_(select(FlatOwnership.flat_id).where(FlatOwnership.user_id == user.id))
         )
     flats = db.scalars(query.order_by(Flat.block, Flat.flat_number)).all()
-    return [_flat_response(f) for f in flats]
+    return [_flat_response(db, f) for f in flats]
 
 
 @router.post(

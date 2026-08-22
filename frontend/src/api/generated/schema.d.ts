@@ -1405,6 +1405,27 @@ export interface components {
             /** @default OWNER_OCCUPIED */
             occupancy_type: components["schemas"]["OccupancyType"];
         };
+        /**
+         * FlatOccupant
+         * @description A person linked to a flat, and how.
+         */
+        FlatOccupant: {
+            /** User Id */
+            user_id: string;
+            /** Full Name */
+            full_name: string;
+            /** Email */
+            email: string;
+            /** Phone */
+            phone: string;
+            /** Role */
+            role: string;
+            /**
+             * Relation
+             * @description OWNER or RESIDENT_TENANT
+             */
+            relation: string;
+        };
         /** FlatResponse */
         FlatResponse: {
             /** Id */
@@ -1422,6 +1443,11 @@ export interface components {
              * @description Display identifier, e.g. B-304
              */
             label: string;
+            /**
+             * Occupants
+             * @description Residents linked to this flat; the resident directory is built from these
+             */
+            occupants?: components["schemas"]["FlatOccupant"][];
         };
         /** GuestPassCreate */
         GuestPassCreate: {

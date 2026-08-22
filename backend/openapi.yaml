@@ -3317,6 +3317,37 @@ components:
       - block
       - flat_number
       title: FlatCreate
+    FlatOccupant:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        full_name:
+          type: string
+          title: Full Name
+        email:
+          type: string
+          title: Email
+        phone:
+          type: string
+          title: Phone
+        role:
+          type: string
+          title: Role
+        relation:
+          type: string
+          title: Relation
+          description: OWNER or RESIDENT_TENANT
+      type: object
+      required:
+      - user_id
+      - full_name
+      - email
+      - phone
+      - role
+      - relation
+      title: FlatOccupant
+      description: A person linked to a flat, and how.
     FlatResponse:
       properties:
         id:
@@ -3338,6 +3369,12 @@ components:
           type: string
           title: Label
           description: Display identifier, e.g. B-304
+        occupants:
+          items:
+            $ref: '#/components/schemas/FlatOccupant'
+          type: array
+          title: Occupants
+          description: Residents linked to this flat; the resident directory is built from these
       type: object
       required:
       - id
