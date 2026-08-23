@@ -866,6 +866,10 @@ argument for the live-Redis suite described in C2.
 The system is deployed to the topology
 [05 — DevOps Architecture](05-devops-architecture.md) specifies:
 
+**Live API:** <https://may2026-team-098.onrender.com>
+· [Swagger UI](https://may2026-team-098.onrender.com/api/docs)
+· [health](https://may2026-team-098.onrender.com/health)
+
 | Component | Host | Notes |
 |---|---|---|
 | Frontend | **Vercel** | Root directory `frontend`, Vite preset |

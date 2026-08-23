@@ -204,8 +204,12 @@ Save; Render redeploys.
 
 ## Step 3 — Point the frontend at the API
 
-Edit **`frontend/vercel.json`** and replace the placeholder host in **both**
-rewrite rules with your API URL from 2a:
+> **Already done for the current deployment.** `frontend/vercel.json` points at
+> <https://may2026-team-098.onrender.com>. Skip to step 4 unless you are
+> deploying the API somewhere else.
+
+Edit **`frontend/vercel.json`** and set the host in **both** rewrite rules to
+your API URL from 2a:
 
 ```json
 { "source": "/api/:path*",

@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://meridian-api.onrender.com/api/:path*"
+      "destination": "https://may2026-team-098.onrender.com/api/:path*"
     },
     {
       "source": "/health",
-      "destination": "https://meridian-api.onrender.com/health"
+      "destination": "https://may2026-team-098.onrender.com/health"
     },
     {
       "source": "/((?!api/|health|assets/).*)",
@@ -27,9 +27,18 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
     }
   ]

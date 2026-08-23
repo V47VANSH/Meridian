@@ -22,10 +22,10 @@ That is deliberate, and it buys three things:
 - **One place to repoint.** Moving the API means editing this file, not
   rebuilding the frontend.
 
-**After deploying the API, replace `meridian-api.onrender.com` in both rewrite
-rules with the real Render hostname.** Until then the deployed site loads but
-cannot sign in — the browser network tab shows a 404 on
-`/api/v1/auth/login`, which is the symptom to look for.
+Both rewrite rules currently point at <https://may2026-team-098.onrender.com>.
+**If the API moves, change it in both** — the site will otherwise load fine and
+then fail to sign in, showing a 404 on `/api/v1/auth/login` in the browser's
+network tab. That is the symptom to look for.
 
 ## The SPA fallback
 
