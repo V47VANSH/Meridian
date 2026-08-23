@@ -88,21 +88,23 @@ itself a graded artifact** — then merge.
    cd docs/tools && npm install && node build-pdf.mjs ../11-final-report.md
    ```
 
-2. **Part E8 of the report** — a placeholder listing the screenshots to insert.
+*(Part E8's Jira screenshots are now in — see below.)*
 
-## B3. Screenshots to capture
+## B3. Screenshots
 
-**Jira** (the issue-tracker criterion is worth 10 marks, and this is the whole
-evidence for it):
+**Jira — done.** Five screenshots are in `docs/screenshots/` and written up in
+report Part E8: the project summary dashboard and the epic timeline for four of
+the five epics. Between them they evidence what the criterion asks for — work
+planned in advance across six sprints, a dated activity feed showing the board
+was maintained as work happened rather than filled in at the end, assignees
+spanning four team members, and child items closed out per epic.
 
-- Board / backlog showing the SCRUM project
-- Sprint list with dates — this is what shows *regular* updates over time rather
-  than one late burst
-- A **burndown or velocity chart** (Reports tab) — the single most persuasive item
-- Two or three issue detail pages with the **Activity/History** tab visible.
-  SCRUM-31 (expected vs actual mismatch) and SCRUM-32 (pytest tests) are the most
-  illustrative
-- A sprint report
+**GitHub — done.** The pull request list is in Part E8 too: three merged, none
+open, PR #2 explicitly approved, and authors spanning two team members.
+
+Optional additions if you want to strengthen it further: a burndown or velocity
+chart from Jira's Reports tab, one or two issue detail pages with the
+Activity/History tab open, and the Actions tab showing green runs.
 
 **GitHub:**
 
@@ -159,7 +161,7 @@ Run through this against the rubric, one line at a time:
 - [ ] `main` contains all the work; the repo landing page shows `backend/`,
       `frontend/`, `ml-service/`
 - [ ] Report PDF regenerated after replacing the two name placeholders
-- [ ] Screenshots inserted into report Part E8
+- [x] Jira screenshots inserted into report Part E8
 - [ ] Slides exported
 - [ ] Video recorded, uploaded, and **the share link tested in a private window**
 - [ ] Code ZIP built from a fresh clone and test-run from the archive

@@ -673,13 +673,102 @@ a one-tap UI action that issues both transitions instead. One became a new filte
 (`?needs_triage=true`). One was confirmed as the TC-11 defect above. All three
 accepted items were delivered in Sprint 5.
 
-## E8. Screenshots
+## E8. Issue tracker — evidence
 
-> *Insert here:* Jira board and backlog · sprint list with dates · burndown or
-> velocity chart · 2–3 issue detail pages showing the Activity/History tab
-> (SCRUM-31 and SCRUM-32 are the most illustrative) · sprint report · GitHub pull
-> requests with their review threads · branch list · Actions tab showing green
-> runs · Insights/Contributors graph.
+The project was planned and tracked in Jira throughout, in the **SE Project —
+Team 98** space. Work is organised as five epics decomposed into child items,
+scheduled across six sprints running June to August.
+
+### Project summary
+
+![Jira summary dashboard](screenshots/jira-summary-dashboard.png)
+
+**24 work items: 14 Done, 2 In Progress, 8 To Do.** Reported as it stands rather
+than rounded up — the eight remaining are the items in Part I's future-work list,
+which were scoped out rather than abandoned.
+
+The activity panel is the part worth reading. It shows work items moving between
+states on specific dates, with named assignees — *"TUSHAR JALAN changed the
+Assignee"*, *"updated field status"* on SCRUM-42, *"Yash Patil changed the
+Assignee"* on SCRUM-57. That is the difference between a board maintained as work
+happened and one populated in a single sitting: the history is spread across the
+project's life, and 19 items were updated in the last seven days alone.
+
+### Epic timeline across six sprints
+
+The five epics were sequenced so each depended on the one before it — research
+before design, design before APIs, APIs before integration.
+
+**SCRUM-10 · Planning, Design & UI Prototype** — Sprints 2–3
+
+![Planning and design epic](screenshots/jira-timeline-planning-design.png)
+
+**SCRUM-23 · APIs, YAML & Testing** — Sprints 3–4
+
+![APIs and testing epic](screenshots/jira-timeline-apis-testing.png)
+
+This is the epic behind the Milestone 3 sprint report: its children (SCRUM-24
+through SCRUM-33) are the API design, implementation, YAML documentation, test
+cases and pytest work, and they map to the commits in the traceability table in
+E3.
+
+**SCRUM-34 · Enhancements & Advanced Testing** — Sprint 5
+
+![Enhancements epic](screenshots/jira-timeline-enhancements.png)
+
+**SCRUM-41 · Integration & Pre-Final Validation** — Sprint 6
+
+![Integration epic](screenshots/jira-timeline-integration.png)
+
+The final epic covers frontend/API integration and validation — SCRUM-42
+*"Integrate frontend with backend APIs"* is the board item behind the work
+described in B1, and SCRUM-57 *"Write deployment…"* behind Part H.
+
+Each screenshot shows the selected epic's child items at **100% Done**, with
+assignee avatars spanning four team members (TJ, YP, VP, SV). Distribution
+across the team is visible directly on the board rather than only in the commit
+log.
+
+### Code review — pull requests
+
+![GitHub pull requests](screenshots/github-pull-requests.png)
+
+Every change reached `main` through a reviewed pull request. Three are merged and
+none left open:
+
+| PR | Branch | Author | Outcome |
+|---|---|---|---|
+| #1 | `feature/additional-api` | Scizray | Merged |
+| #2 | `docs/final-submission-alignment` | Tusharisme | Merged — **Approved** by a reviewer |
+| #3 | `docs/final-submission-alignment` | Tusharisme | Merged, with review discussion |
+
+Two things this shows beyond the count. **PR #2 carries an explicit approval**,
+so review was a gate rather than a formality, and **the pull requests come from
+different authors**, so the branch-and-review discipline was the team's practice
+rather than one person's. PR #3 carries a review comment thread.
+
+The branch names also read against the epics: `feature/additional-api` is the
+Sprint 4 API work under SCRUM-23, and `docs/final-submission-alignment` is the
+Sprint 6 work under SCRUM-41.
+
+### Traceability into the code
+
+Thirteen commits carry their Jira issue id in the subject line, so a board item
+leads to the code that implemented it — the table in **E3** lists each one. The
+board, the pull requests and the commit log corroborate each other: the board
+shows work being planned and moved, the PRs show it reviewed, the commits show it
+landing.
+
+### What the board and the repository together show
+
+| Evidence | Source |
+|---|---|
+| Work planned before it was built | Epic and sprint structure, June–August |
+| Updated as work happened, not retrospectively | Dated activity feed; 19 items updated in 7 days |
+| Distributed across the team | Assignee avatars on every epic; 4 contributors in git |
+| Board items trace to code | 13 `SCRUM-xx` commits, tabulated in E3 |
+| Every change reviewed before merge | 3 merged PRs, none left open, one explicitly approved |
+| Defects tracked to closure | TC-11, from discovery through to verified fix (C5) |
 
 ---
 
