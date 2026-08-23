@@ -1,0 +1,14 @@
+{
+  "name": "meridian-docs-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Renders the project's Markdown documents to PDF. Kept out of frontend/ so the app's dependency tree stays clean.",
+  "scripts": {
+    "report": "node build-pdf.mjs ../11-final-report.md",
+    "slides": "node build-pdf.mjs ../13-presentation.md"
+  },
+  "dependencies": {
+    "marked": "^15.0.0"
+  }
+}

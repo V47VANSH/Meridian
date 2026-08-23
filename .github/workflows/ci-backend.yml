@@ -28,8 +28,19 @@ defaults:
 
 jobs:
   test:
-    name: lint and test (sqlite)
+    name: lint and test (sqlite + redis)
     runs-on: ubuntu-latest
+    services:
+      # The suite passes without Redis by design, but the Redis-backed lock and
+      # rate limiter would otherwise only ever be exercised against a fake.
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -49,11 +60,16 @@ jobs:
         run: ruff check .
 
       - name: Test
+        # REDIS_URL is passed so tests/test_redis_integration.py runs against the
+        # live service above instead of skipping. The rest of the suite still
+        # uses the in-process lock and limiter, so its results do not depend on
+        # Redis being present — see tests/conftest.py.
         run: pytest -q
         env:
           JWT_SECRET: ci-secret
           RAZORPAY_KEY_SECRET: ci_gateway_secret
           SEED_ON_STARTUP: "false"
+          REDIS_URL: redis://localhost:6379/0
 
       - name: Check the committed OpenAPI spec is current
         # The spec is generated from the live route table, so a route added
@@ -101,7 +117,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install "psycopg[binary]==3.2.3"
 
       - name: Apply migrations
         run: alembic upgrade head

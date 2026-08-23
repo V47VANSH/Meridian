@@ -12,8 +12,6 @@ the same slot, and a partial unique index makes a second confirmed booking
 impossible at the database level even if the lock were bypassed.
 """
 
-import threading
-from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, status
@@ -23,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_roles
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
+from app.core.slotlock import slot_lock
 from app.db.session import get_db
 from app.models import (
     Booking,
@@ -51,10 +50,6 @@ AUTH_ERRORS = {
     403: {"model": ErrorResponse, "description": "Role is not permitted to perform this action"},
 }
 
-# Per-slot locks. Redis holds these in a multi-instance deployment (see
-# docs/02-backend-architecture.md section 7); in-process locks are equivalent
-# for the single-instance deploy this milestone targets.
-_slot_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
 
 
 def _confirmed_booking(db: Session, slot_id: str) -> Booking | None:
@@ -277,7 +272,7 @@ def create_booking(
     except ValueError:
         pass
 
-    with _slot_locks[slot.id]:
+    with slot_lock(slot.id):
         if _confirmed_booking(db, slot.id) is not None:
             raise ConflictError(
                 "This slot has already been booked", error="SLOT_ALREADY_BOOKED"

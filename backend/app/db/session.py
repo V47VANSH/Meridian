@@ -1,5 +1,6 @@
 """SQLAlchemy engine, session factory and declarative base."""
 
+import logging
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
@@ -7,10 +8,27 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 _connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     # FastAPI serves requests from a threadpool; SQLite needs this relaxed.
     _connect_args["check_same_thread"] = False
+elif settings.DATABASE_URL.startswith("postgresql+psycopg"):
+    # Disable psycopg's implicit prepared statements.
+    #
+    # Supabase (and PgBouncer generally) offers two pooling modes. In session
+    # mode a client keeps one backend for the life of the connection and
+    # prepared statements are fine. In transaction mode a backend is handed
+    # out per transaction, so the statement psycopg prepared on one may not
+    # exist on the next — surfacing as intermittent DuplicatePreparedStatement
+    # or "prepared statement does not exist" errors under load, and only in
+    # production.
+    #
+    # Turning them off costs a little planning time per query and makes the
+    # app correct against either mode, which is worth more than the planning
+    # time given the failure is intermittent and environment-specific.
+    _connect_args["prepare_threshold"] = None
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -46,11 +64,21 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Create any missing tables.
+    """Create any missing tables, when this deployment owns the schema that way.
 
-    Production uses versioned migrations; this keeps local runs and the test
-    suite a single call away from a working schema.
+    SQLite runs (local development and the test suite) build the schema from
+    model metadata, so the project is a single call away from working. Postgres
+    is migrated with `alembic upgrade head` instead — see
+    docs/03-database-architecture.md section 6. Running create_all against a
+    migrated database would produce tables Alembic never stamped a revision for,
+    and the next upgrade would fail on tables that already exist.
     """
     from app import models  # noqa: F401  (registers the mappers)
+
+    if not settings.AUTO_CREATE_TABLES:
+        logger.info(
+            "AUTO_CREATE_TABLES is off; the schema is owned by Alembic migrations"
+        )
+        return
 
     Base.metadata.create_all(bind=engine)
