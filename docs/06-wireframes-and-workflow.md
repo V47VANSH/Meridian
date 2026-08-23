@@ -263,7 +263,7 @@ Hold-to-trigger (not a single tap) is a deliberate anti-misfire safeguard for so
 
 - **Loading**: skeleton placeholders on cards/lists, never a blank white screen
 - **Empty**: e.g. "No complaints yet — raise one to get started" with the primary action button visible, not just blank
-- **Error**: inline message near the failed action (e.g. under the Pay Now button) plus a Sentry-logged `requestId`, not a generic alert popup
+- **Error**: inline message near the failed action (e.g. under the Pay Now button) showing the `requestId` so the failure can be traced to its server-side log entry, not a generic alert popup. (The `requestId` is delivered; forwarding it to Sentry is not.)
 - **Offline (PWA)**: cached last-known dashboard data shown with a small "offline — showing cached data" banner, actions that require network are disabled rather than silently failing
 
 ## 5. From Wireframe to Build Order

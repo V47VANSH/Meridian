@@ -40,7 +40,9 @@ Wiring is done with `APIRouter` plus `Depends()` rather than a globally register
 
 Every route declares Pydantic request and response models plus its error responses, from which FastAPI generates an OpenAPI 3.1 spec served at `/api/docs` and exported to `openapi.yaml` by `scripts/export_openapi.py`. This is the single source of truth the frontend codegens against (see [01 — Frontend Architecture](01-frontend-architecture.md#3-api-client)).
 
-Because the spec is generated from the live route table, it cannot describe an endpoint that does not exist — a class of drift that a hand-maintained spec is prone to.
+Because the spec is generated from the live route table, it cannot describe an endpoint that does not exist — a class of drift that a hand-maintained spec is prone to. CI enforces the converse: it re-exports the spec and fails if the committed `openapi.yaml` has moved, so a route cannot be added without the contract following it.
+
+The delivered contract is **48 paths / 59 operations / 62 schemas**, across nine routers — the seven epic routers below plus `dashboard.py` (per-role aggregation views) and `ai.py` (the natural-language assistant).
 
 The exported document carries two extensions beyond standard OpenAPI:
 
@@ -57,7 +59,7 @@ The exported document carries two extensions beyond standard OpenAPI:
 - **Passwords**: PBKDF2-SHA256 with 260,000 iterations, salted per user. The iteration count is embedded in the stored digest, so raising the cost later does not invalidate existing passwords.
 - **AuthZ**: `require_roles(Role.SOCIETY_OFFICIAL, ...)` is a dependency that checks the decoded JWT's role claim. `get_tenant_id` is a dependency that supplies the society scope for the request, taken from the token's `tenant_id` claim — never from a request body or query parameter, so a caller cannot ask for another society's data.
 - **Guest passes**: not a JWT — a signed, random (non-sequential, non-guessable) 192-bit single-use token with `valid_from`/`valid_until`. On guard scan, the pass flips `ACTIVE → USED` atomically, preventing replay even if the QR image is captured.
-- **Rate limiting**: middleware backed by Redis, tighter limits on `/auth/*` and `/sos` than general API traffic.
+- **Rate limiting**: *not implemented.* The error catalogue reserves a `RATE_LIMITED` (429) code for it, and the intended shape is Redis-backed middleware with tighter limits on `/auth/*` and `/sos` than on general traffic. Nothing enforces it today, so a caller can retry the login endpoint without throttling — the most significant security gap in the delivered system, and the first thing to add alongside Redis.
 - **Secrets**: payment gateway keys, JWT signing secret, ML shared-secret, SMS/email keys — all via environment variables (Render env vars in prod, `.env` locally, never committed).
 
 ## 5. Maintenance & Payments Flow
@@ -94,7 +96,7 @@ This is covered directly by a test that fires eight simultaneous booking request
 
 On guard scan (`POST /visitors/guest-passes/{token}/verify`), the backend re-checks `valid_from`/`valid_until` against the current time (expiry is evaluated on read, not by a background job — there is no separate "mark expired" cron) and, only if still within window and still `ACTIVE`, flips it to `USED` in the same transaction that returns the verification result — this is what makes the token single-use even if the QR image were captured and reused. Every rejection returns a specific reason (used, revoked, expired, or not yet valid) rather than a bare false, so the guard knows what to tell the visitor.
 
-> **Known gap**: the same window check is applied on the verify path but not on the *list* path, so a pass whose window has closed is still listed as `ACTIVE` until someone scans it. No security impact — the gate still refuses it — but the resident's list is misleading. Tracked and scheduled for Sprint 5; see the Milestone 3 report §5.
+> **Resolved in Sprint 5.** The window check was originally applied on the verify path but not on the *list* path, so a pass whose window had closed was still listed as `ACTIVE` until someone scanned it. There was no security impact — the gate refused it either way — but the resident's list was misleading. It is now evaluated on read on both paths. The defect's full lifecycle, from discovery in testing through to fix, is recorded in the Milestone 3 report §5 and summarised in the final report.
 
 **SOS**: `POST /sos` (resident) writes an `SOSIncident` row as `OPEN`, then notifies every security guard in the society (push + SMS + in-app, see §10). The incident row is written first, so the alert survives even if every notification channel fails. A guard calling `POST /sos/{id}/acknowledge` flips it to `ACKNOWLEDGED` and notifies the raiser back, so they see confirmation someone is responding rather than a fire-and-forget button press.
 
@@ -116,7 +118,9 @@ notify() → resolve channels for this notification type (see table below)
           for the in-app feed
 ```
 
-External channel dispatch is queued rather than sent inline, so a flaky SMS or email provider can never slow down or fail an API request. `notify_many()` fans one event out to several recipients — used for SOS (all on-duty guards) and announcements (everyone in the target audience).
+The in-app `Notification` row is always written, whatever happens to the external channels. `notify_many()` fans one event out to several recipients — used for SOS (all on-duty guards) and announcements (everyone in the target audience).
+
+> **Delivery status.** External channels are resolved and **logged at the dispatch boundary**; no push, email or SMS is actually sent, and there is no queue. The routing table above is implemented and exercised, so wiring a real provider is a change inside `notify()` and nowhere else. Queue-backed delivery — so a flaky provider can never slow down or fail an API request — is the intended next step and the reason the boundary exists at all.
 
 | Type | Channels |
 |---|---|
@@ -151,4 +155,6 @@ Two deliberate choices worth noting:
 - **Concurrency**: the double-booking guard is tested with real simultaneous threaded requests, not a simulated sequence.
 - **Contract**: `scripts/export_openapi.py` regenerates `openapi.yaml` in CI and fails the build if it diverges from the committed spec without a corresponding version bump.
 
-Current state: 92 tests, 91 passing, 1 `xfail` documenting the known guest-pass listing gap in §8. The `xfail` is `strict=True`, so fixing the defect without removing the marker fails the build — the record cannot silently go stale.
+Current state: **131 tests, all passing, no `xfail` markers.** The suite previously carried one `strict=True` `xfail` documenting the guest-pass listing defect in §8; that defect is fixed and the case is now a positive assertion. The separate ML service carries a further 21 tests.
+
+Two suites worth calling out because they test properties rather than endpoints: `test_tenant_isolation.py` attempts every cross-society access path with a token from another society, and `test_migrations.py` builds the schema from both the Alembic revisions and the ORM metadata and compares them structurally, so a model change committed without a migration fails here rather than on deploy.

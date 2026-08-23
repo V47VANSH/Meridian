@@ -212,6 +212,19 @@ Each epic follows the pattern: one `api/v1/*.py` router + its Pydantic schemas i
 | **Web Push (VAPID)** | Browser standard | In-browser push for all notification types; subscription stored per user |
 | **Sentry** | External | Error tracking; `requestId` links frontend errors to server-side traces |
 
+> **Delivery status of the external components above.** Razorpay is integrated
+> server-side (order creation and HMAC-verified confirmation). Google Gemini backs
+> the AI assistant, with a rule-based fallback, and is not shown in the diagram
+> above because it was added after this document was written.
+>
+> **Not built:** all four Redis roles, SendGrid, Twilio, Web Push/VAPID and Sentry.
+> Each has a delivered fallback rather than a missing feature — the booking lock
+> runs in-process behind a partial unique index in the database, notification
+> channels are resolved and logged while the in-app row is always written, and
+> `requestId` correlation works through the server log without an error-tracking
+> SDK. This section is retained as the component design; the final report's
+> *Design evolution and deviations* section argues each decision.
+
 ---
 
 ## 6. Component Interaction Summary

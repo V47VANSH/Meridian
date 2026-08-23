@@ -9,11 +9,19 @@ management, society administration, and non-resident owner services.
 
 ```
 MAY2026-Team-098/
-├── frontend/     React + TypeScript + Vite single-page app
-├── backend/      FastAPI + SQLAlchemy REST API
-├── docs/         Architecture, component, class and database design
-└── *.png         Diagrams referenced by the milestone reports
+├── frontend/           React + TypeScript + Vite single-page app
+├── backend/            FastAPI + SQLAlchemy REST API
+├── ml-service/         FastAPI service: complaint classifier + payment-risk model
+├── docs/               Architecture, component, class and database design,
+│                       milestone reports, and the final report
+├── .github/workflows/  CI for all three services
+└── *.png               Diagrams referenced by the milestone reports
 ```
+
+The backend and frontend are all you need to run the application. The ML service
+is optional — without it, complaint classification falls back to a keyword
+classifier and flags each complaint for manual triage, which is the designed
+behaviour rather than a failure.
 
 ## Technologies
 
@@ -22,12 +30,21 @@ MAY2026-Team-098/
 openapi-typescript (API types generated from the backend spec), qrcode
 (scannable guest passes).
 
-**Backend** — FastAPI 0.115, SQLAlchemy 2.0, Pydantic 2.10, uvicorn, PyJWT
-(HS256 access and refresh tokens), PBKDF2-SHA256 password hashing, SQLite by
-default (PostgreSQL via `DATABASE_URL`), pytest 8.3.
+**Backend** — FastAPI 0.115, SQLAlchemy 2.0, Alembic 1.14 (migrations), Pydantic
+2.10, uvicorn, PyJWT (HS256 access and rotating refresh tokens), PBKDF2-SHA256
+password hashing, SQLite by default (PostgreSQL via `DATABASE_URL`), pytest 8.3,
+Ruff (lint).
 
-**General** — Git and GitHub for version control and code review, Jira for
-issue tracking, Swagger UI / OpenAPI 3.1 for the API contract.
+**ML service** — FastAPI, scikit-learn 1.6 (TF-IDF + logistic regression for
+complaint classification; gradient-boosted trees for payment risk), joblib for
+model artifacts.
+
+**External APIs** — Razorpay (test mode; HMAC-SHA256 signature verification
+server-side), Google Gemini (natural-language assistant, with a rule-based
+fallback when no key is configured).
+
+**General** — Git and GitHub for version control and code review, GitHub Actions
+for CI, Jira for issue tracking, Swagger UI / OpenAPI 3.1 for the API contract.
 
 ## Requirements
 
@@ -88,6 +105,50 @@ the browser only ever talks to one origin and no CORS configuration is needed.
 If the backend runs somewhere other than port 8000, set `VITE_API_PROXY_TARGET`
 (see `frontend/.env.example`).
 
+### 3. ML service (optional)
+
+Skip this and the application still works — complaint classification falls back
+to a keyword classifier and flags each complaint for manual triage. Start it to
+see the trained models make the call instead.
+
+**Windows**
+
+```bat
+cd ml-service
+python -m venv .venv
+.venv\Scriptsctivate
+pip install -r requirements.txt
+uvicorn app.main:app --port 8100
+```
+
+**Ubuntu / macOS**
+
+```bash
+cd ml-service
+python3 -m venv .venv
+source .venv/bin/activate
+pip3 install -r requirements.txt
+uvicorn app.main:app --port 8100
+```
+
+Trained model artifacts are committed, so it serves predictions immediately. To
+retrain them from scratch:
+
+```bash
+python -m app.complaints.train      # TF-IDF + logistic regression
+python -m app.payment_risk.train    # gradient-boosted trees
+```
+
+Then point the backend at it and restart the backend:
+
+```bat
+set ML_SERVICE_URL=http://localhost:8100          :: Windows
+export ML_SERVICE_URL=http://localhost:8100       # Ubuntu / macOS
+```
+
+<http://localhost:8100/health> reports whether each trained artifact is loadable,
+and <http://localhost:8100/docs> is its Swagger UI.
+
 ### Demo accounts
 
 Every seeded account uses the password `Password123`. The sign-in page lists
@@ -104,20 +165,44 @@ them behind **Show demo accounts** and fills the form when one is clicked.
 
 ## Testing
 
+**Backend — 131 tests.** Each runs against its own throwaway SQLite database, so
+nothing external is required: no PostgreSQL, no Redis, no running server.
+
 ```bash
 cd backend
-pytest                      # whole suite
-pytest tests/test_auth.py   # one module
-pytest -k booking           # by keyword
+pytest                          # whole suite
+pytest tests/test_auth.py       # one module
+pytest -k booking               # by keyword
+ruff check .                    # lint
 ```
 
-The frontend is typechecked as part of its build:
+Three suites test properties rather than endpoints, and are the ones worth
+reading first:
+
+| Suite | What it proves |
+|---|---|
+| `test_tenant_isolation.py` | Every cross-society access path, attempted with a token from another society |
+| `test_bookings.py` | Eight simultaneous threaded requests for one slot produce exactly one `201` and seven `409`s |
+| `test_migrations.py` | The Alembic revisions and the ORM models build structurally identical schemas |
+
+**ML service — 21 tests**, covering the contract the backend depends on, the
+pre/post-processing, and the metric floors each trained artifact must clear.
+
+```bash
+cd ml-service
+pytest
+```
+
+**Frontend** is gated by the type checker rather than a test suite:
 
 ```bash
 cd frontend
 npm run typecheck           # tsc --noEmit
 npm run build               # typecheck + production bundle
+npm run gen:api             # regenerate API types from backend/openapi.yaml
 ```
+
+All three run in CI on every pull request — see `.github/workflows/`.
 
 ## How the two halves connect
 

@@ -5,6 +5,22 @@ Sprint window: 22 Jul – 2 Aug · Board: SCRUM-24 → SCRUM-33
 
 ---
 
+> **This is a dated sprint record, deliberately left unrevised.**
+>
+> Every figure below was accurate at Sprint 4 close on 2 Aug 2026. Sprint 5 moved
+> them: the API grew from 34 paths / 44 operations to **48 / 59** (adding the
+> dashboard aggregation and AI assistant surfaces), the suite grew from 92 tests
+> with one `xfail` to **131 with none**, and the TC-11 defect in §5 was **fixed**.
+>
+> It is not rewritten to match, because a sprint report that is edited to agree
+> with a later state stops being evidence of anything. Its value is in showing
+> what was known and true at the time — including a defect the team found,
+> documented and then closed. Current figures are in the final report; §7's
+> Sprint 5 plan is the bridge between the two, and every Priority 1 and 2 item in
+> it was delivered.
+
+---
+
 ## 1. Sprint Summary
 
 Sprint 4 turned the Milestone 2 design into a running, tested backend. Ten
@@ -77,6 +93,11 @@ All paths are prefixed `/api/v1`.
 ---
 
 ## 3. Test Execution Summary
+
+> **Historical record — figures as at Sprint 4 close (2 Aug 2026).** The suite has
+> since grown to **131 tests with no `xfail` markers**, and the ML service adds a
+> further 21. This section is left as it stood so the sprint-over-sprint progression
+> stays visible; current figures are in the final report.
 
 ```
 $ pytest
@@ -484,7 +505,14 @@ def test_outsider_cannot_read_another_societys_invoice(
 
 ## 5. Test Case Where Expected and Actual Output Do Not Match
 
-### TC-11 — An expired guest pass is still listed as ACTIVE ❌
+> **Status: RESOLVED in Sprint 5.** Fixed by applying the same read-time window
+> evaluation on the list path that the verify path already used; the `strict=True`
+> `xfail` marker was removed and the case is now a passing positive assertion. The
+> record below is kept intact because it is the clearest evidence of the team's
+> defect loop working end to end: found by testing → documented here with root
+> cause and impact → scheduled as Sprint 5 Priority 1 → fixed → verified green.
+
+### TC-11 — An expired guest pass is still listed as ACTIVE ❌ *(resolved)*
 
 | | |
 |---|---|
