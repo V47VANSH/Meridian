@@ -1,0 +1,141 @@
+"""Tests for user creation by Society Official and user directory management."""
+
+from fastapi.testclient import TestClient
+
+
+def test_official_can_create_new_user_and_link_flat(client: TestClient, society: dict, login):
+    """Society Official creates a new resident user and links them to flat A-102."""
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "email": "aarav.sharma@greenvalley.example",
+            "password": "Password123",
+            "full_name": "Aarav Sharma",
+            "phone": "9800000010",
+            "role": "RESIDENT_OWNER",
+            "flat_id": society["flat_a_id"],
+            "relation": "OWNER",
+        },
+        headers=login("official"),
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["email"] == "aarav.sharma@greenvalley.example"
+    assert data["full_name"] == "Aarav Sharma"
+    assert data["role"] == "RESIDENT_OWNER"
+
+
+def test_resident_cannot_create_users(client: TestClient, login):
+    """Resident accounts are forbidden from adding new users."""
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "email": "hacker@example.com",
+            "password": "Password123",
+            "full_name": "Illegal User",
+            "role": "RESIDENT_OWNER",
+        },
+        headers=login("resident"),
+    )
+    assert response.status_code == 403
+
+
+def test_duplicate_user_creation_is_rejected(client: TestClient, login):
+    """Creating a user with an email already present in society fails with 409."""
+    # Try creating user with official's email
+    response = client.post(
+        "/api/v1/users",
+        json={
+            "email": "official@greenvalley.example",
+            "password": "Password123",
+            "full_name": "Duplicate Official",
+            "role": "SOCIETY_OFFICIAL",
+        },
+        headers=login("official"),
+    )
+    assert response.status_code == 409
+    assert response.json()["error"] == "USER_ALREADY_EXISTS"
+
+
+def test_list_users_includes_created_user(client: TestClient, login):
+    """GET /users lists all users in the society including newly created ones."""
+    # Create user
+    client.post(
+        "/api/v1/users",
+        json={
+            "email": "rohan.verma@greenvalley.example",
+            "password": "Password123",
+            "full_name": "Rohan Verma",
+            "phone": "9800000013",
+            "role": "RESIDENT_OWNER",
+        },
+        headers=login("official"),
+    )
+
+    response = client.get("/api/v1/users", headers=login("official"))
+    assert response.status_code == 200, response.text
+    emails = [u["email"] for u in response.json()]
+    assert "rohan.verma@greenvalley.example" in emails
+
+
+def test_mine_filter_returns_only_the_callers_own_flat(
+    client: TestClient, society: dict, login
+):
+    """`?mine=true` answers "which flat am I in?" rather than listing the society.
+
+    Without it a client has to guess — picking the first society flat, which is
+    A-102 here and belongs to someone else entirely.
+    """
+    response = client.get("/api/v1/flats?mine=true", headers=login("resident"))
+    assert response.status_code == 200, response.text
+
+    flats = response.json()
+    assert [f["label"] for f in flats] == ["B-304"]
+    assert flats[0]["id"] == society["flat_b_id"]
+
+
+def test_mine_filter_is_empty_for_a_user_with_no_flat(client: TestClient, login):
+    """A guard occupies no flat, so the filter returns nothing rather than A-102."""
+    response = client.get("/api/v1/flats?mine=true", headers=login("guard"))
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+def test_flats_defaults_to_the_whole_society(client: TestClient, login):
+    """Omitting `mine` keeps the official's society-wide view unchanged."""
+    response = client.get("/api/v1/flats", headers=login("resident"))
+    assert response.status_code == 200, response.text
+    assert {f["label"] for f in response.json()} == {"A-102", "B-304"}
+
+
+def test_flat_list_carries_its_occupants(client: TestClient, society: dict, login):
+    """The directory is built from these links, so the flat list must expose them."""
+    response = client.get("/api/v1/flats", headers=login("official"))
+    assert response.status_code == 200, response.text
+
+    by_label = {f["label"]: f for f in response.json()}
+
+    occupants = by_label["B-304"]["occupants"]
+    assert len(occupants) == 1
+    assert occupants[0]["user_id"] == society["resident_id"]
+    assert occupants[0]["full_name"] == "Arjun Rao"
+    assert occupants[0]["email"] == "resident@greenvalley.example"
+    assert occupants[0]["relation"] == "OWNER"
+
+
+def test_newly_linked_occupant_appears_on_the_flat(client: TestClient, society: dict, login):
+    """Linking an occupant is reflected in the next read of the flat list."""
+    official = login("official")
+    link = client.post(
+        f"/api/v1/flats/{society['flat_b_id']}/occupants",
+        json={"user_id": society["neighbour_id"], "relation": "RESIDENT_TENANT"},
+        headers=official,
+    )
+    assert link.status_code == 200, link.text
+
+    flats = client.get("/api/v1/flats", headers=official).json()
+    b304 = next(f for f in flats if f["label"] == "B-304")
+
+    relations = {o["user_id"]: o["relation"] for o in b304["occupants"]}
+    assert relations[society["neighbour_id"]] == "RESIDENT_TENANT"
+    assert relations[society["resident_id"]] == "OWNER"

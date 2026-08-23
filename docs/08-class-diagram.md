@@ -6,7 +6,7 @@ Parent doc: [00 — Architecture Overview](00-architecture-overview.md)
 This document covers two levels of the class model:
 
 1. **Domain Entity Classes** — the core data objects of the system (maps to DB tables)
-2. **Service Classes** — the backend business logic components (NestJS services)
+2. **Service Classes** — the backend business logic components (FastAPI routers and services)
 
 ---
 
@@ -376,156 +376,187 @@ classDiagram
 classDiagram
     direction LR
 
-    class AuthService {
-        -PrismaService prisma
-        -JwtService jwtService
-        +login(email, password) TokenPair
-        +register(dto RegisterDto) User
-        +refreshTokens(token String) TokenPair
-        +logout(userId String) void
-        -hashPassword(plain String) String
-        -verifyPassword(plain, hash String) Boolean
-        -issueAccessToken(user User) String
-        -issueRefreshToken(userId String) String
+    class AuthRouter {
+        -Session db
+        +register(payload RegisterRequest) UserResponse
+        +login(payload LoginRequest) TokenResponse
+        +refresh(payload RefreshRequest) TokenResponse
+        +logout(payload RefreshRequest) MessageResponse
+        +me() UserResponse
+        -issue_tokens(user User) TokenResponse
     }
 
-    class TenantService {
-        -PrismaService prisma
-        +createTenant(dto CreateTenantDto) Tenant
-        +getTenant(id String) Tenant
-        +updateTenant(id String, dto) Tenant
-        +listTenants() Tenant[]
+    class SecurityModule {
+        +hash_password(plain str) str
+        +verify_password(plain, encoded str) bool
+        +create_access_token(user_id, tenant_id, role) str
+        +create_refresh_token(user_id str) tuple
+        +decode_token(token str) dict
+        +hash_token(token str) str
+        +generate_qr_token() str
+        +sign_payload(payload, secret str) str
+        +verify_signature(payload, sig, secret) bool
     }
 
-    class UserService {
-        -PrismaService prisma
-        +listUsers(tenantId String) User[]
-        +createUser(dto CreateUserDto) User
-        +updateUser(id String, dto) User
-        +deleteUser(id String) void
-        +assignFlat(userId, flatId, relation) FlatOwnership
+    class TenantRouter {
+        -Session db
+        +create_tenant(payload TenantCreate) TenantResponse
+        +list_tenants() list~TenantResponse~
+        +create_flat(payload FlatCreate) FlatResponse
+        +list_flats(block str) list~FlatResponse~
+        +assign_occupant(flat_id, payload) MessageResponse
+        +list_users(role Role) list~UserResponse~
     }
 
-    class MaintenanceService {
-        -PrismaService prisma
-        -MLClientService mlClient
-        -NotificationService notificationService
-        -RazorpayClient razorpay
-        +generateMonthlyInvoices(tenantId String) void
-        +listInvoices(tenantId, flatId) MaintenanceInvoice[]
-        +initiatePayment(invoiceId String) RazorpayOrder
-        +handleWebhook(payload, signature) void
-        +refreshRiskScores(tenantId String) void
-        -verifyWebhookSignature(payload, sig) Boolean
+    class MaintenanceRouter {
+        -Session db
+        -MLClient ml_client
+        -NotificationService notifications
+        +create_invoice(payload InvoiceCreate) InvoiceResponse
+        +list_invoices(status, flat_id, period) list~InvoiceResponse~
+        +get_invoice(invoice_id str) InvoiceResponse
+        +create_payment_order(invoice_id str) PaymentOrderResponse
+        +confirm_payment(invoice_id, payload) PaymentResponse
+        +summary() MaintenanceSummaryResponse
+        +risk_score(flat_id, period) RiskScoreResponse
+        -refresh_overdue(invoices list) void
+        -assert_can_view(user, invoice) void
     }
 
-    class ComplaintService {
-        -PrismaService prisma
-        -MLClientService mlClient
-        -NotificationService notificationService
-        -AuditService auditService
-        +createComplaint(dto CreateComplaintDto) Complaint
-        +listComplaints(tenantId, filters) Complaint[]
-        +assignComplaint(id, staffId) Complaint
-        +updateStatus(id, status, note) Complaint
-        -classifyWithFallback(description) ClassifyResult
+    class ComplaintRouter {
+        -Session db
+        -MLClient ml_client
+        -NotificationService notifications
+        -AuditService audit
+        +create_complaint(payload ComplaintCreate) ComplaintResponse
+        +list_complaints(status, assigned_to_me) list~ComplaintResponse~
+        +get_complaint(complaint_id str) ComplaintResponse
+        +update_status(complaint_id, payload) ComplaintResponse
+        +assign_complaint(complaint_id, payload) ComplaintResponse
     }
 
-    class BookingService {
-        -PrismaService prisma
+    class BookingRouter {
+        -Session db
         -Redis redis
-        -RealtimeGateway realtimeGateway
-        -NotificationService notificationService
-        +listFacilities(tenantId) Facility[]
-        +listSlots(facilityId, week) FacilitySlot[]
-        +createBooking(dto CreateBookingDto) Booking
-        +cancelBooking(id String) void
-        -acquireSlotLock(slotId String) Boolean
-        -releaseSlotLock(slotId String) void
+        -NotificationService notifications
+        +create_facility(payload FacilityCreate) FacilityResponse
+        +list_facilities() list~FacilityResponse~
+        +create_slot(facility_id, payload) SlotResponse
+        +list_slots(facility_id, date) list~SlotResponse~
+        +create_booking(payload BookingCreate) BookingResponse
+        +list_bookings(mine bool) list~BookingResponse~
+        +cancel_booking(booking_id str) BookingResponse
+        -confirmed_booking(slot_id str) Booking
     }
 
-    class VisitorService {
-        -PrismaService prisma
-        -RealtimeGateway realtimeGateway
-        -NotificationService notificationService
-        +generateGuestPass(dto CreateGuestPassDto) GuestPass
-        +listGuestPasses(flatId) GuestPass[]
-        +verifyGuestPass(token String) VerifyResult
-        +raiseSOS(dto SOSDto) SOSIncident
-        +acknowledgeSOS(id, guardId) SOSIncident
-        -generateSecureToken() String
+    class VisitorRouter {
+        -Session db
+        -NotificationService notifications
+        +create_guest_pass(payload GuestPassCreate) GuestPassResponse
+        +list_guest_passes(status) list~GuestPassResponse~
+        +verify_guest_pass(qr_token str) GuestPassVerifyResponse
+        +revoke_guest_pass(pass_id str) GuestPassResponse
+        +raise_sos(payload SOSCreate) SOSResponse
+        +list_sos(status) list~SOSResponse~
+        +acknowledge_sos(incident_id str) SOSResponse
+        +resolve_sos(incident_id str) SOSResponse
     }
 
-    class AnnouncementService {
-        -PrismaService prisma
-        -NotificationService notificationService
-        +createAnnouncement(dto CreateAnnouncementDto) Announcement
-        +listAnnouncements(tenantId, audience) Announcement[]
+    class AnnouncementRouter {
+        -Session db
+        -NotificationService notifications
+        +create_announcement(payload AnnouncementCreate) AnnouncementResponse
+        +list_announcements() list~AnnouncementResponse~
+        +list_notifications(unread_only bool) list~NotificationResponse~
+        +mark_read(notification_id str) NotificationResponse
+        -visible_to(audience, role str) bool
     }
 
     class NotificationService {
-        -BullMQ queue
-        -PrismaService prisma
-        +notify(userId, type, payload) void
-        -resolveChannels(type NotificationType) NotificationChannel[]
-        -sendPush(subscription, payload) void
-        -sendEmail(to, subject, body) void
-        -sendSMS(phone, message) void
+        -Session db
+        -Redis queue
+        +notify(tenant_id, user_id, type, title, body) Notification
+        +notify_many(tenant_id, user_ids, type, title, body) list
+        -CHANNELS dict
+        -send_push(subscription, payload) void
+        -send_email(to, subject, body) void
+        -send_sms(phone, message) void
     }
 
     class AuditService {
-        -PrismaService prisma
-        +log(tenantId, actor, action, entityType, entityId) void
-        +listLogs(tenantId, filters) AuditLog[]
+        -Session db
+        +record(tenant_id, actor, action, entity_type, entity_id, detail) AuditLog
     }
 
     class RealtimeGateway {
-        -SocketIO server
-        -Redis redisAdapter
-        +handleConnection(socket) void
-        +emitSOSRaised(tenantId, incident) void
-        +emitSOSAcknowledged(tenantId, incident) void
-        +emitComplaintStatusChanged(tenantId, complaint) void
-        +emitBookingSlotTaken(tenantId, slotId) void
-        -verifyJWT(token String) JWTPayload
-        -joinRooms(socket, tenantId, userId, role) void
+        -WebSocket server
+        -Redis pubsub
+        +handle_connection(websocket) void
+        +emit_sos_raised(tenant_id, incident) void
+        +emit_sos_acknowledged(tenant_id, incident) void
+        +emit_complaint_status_changed(tenant_id, complaint) void
+        +emit_booking_slot_taken(tenant_id, slot_id) void
+        -verify_jwt(token str) dict
+        -subscribe_channels(ws, tenant_id, user_id, role) void
     }
 
-    class MLClientService {
-        -HttpClient httpClient
-        +classifyComplaint(description String) ClassifyResult
-        +scorePaymentRisk(features PaymentFeatures) Float
-        -withFallback(call, fallback) any
+    class MLClient {
+        +classify_complaint(description str) Classification
+        +score_payment_risk(on_time_ratio, overdue_count, months) float
+        -rule_based(description str) Classification
     }
 
-    class PrismaService {
-        -PrismaClient client
-        +onModuleInit() void
-        +onModuleDestroy() void
+    class Dependencies {
+        +get_db() Session
+        +get_current_user() CurrentUser
+        +require_roles(roles) CurrentUser
+        +get_tenant_id() str
+    }
+
+    class Session {
+        -Engine engine
+        +query() Result
+        +commit() void
+        +close() void
     }
 
     %% Dependencies
-    AuthService --> PrismaService
-    TenantService --> PrismaService
-    UserService --> PrismaService
-    MaintenanceService --> PrismaService
-    MaintenanceService --> MLClientService
-    MaintenanceService --> NotificationService
-    ComplaintService --> PrismaService
-    ComplaintService --> MLClientService
-    ComplaintService --> NotificationService
-    ComplaintService --> AuditService
-    BookingService --> PrismaService
-    BookingService --> RealtimeGateway
-    BookingService --> NotificationService
-    VisitorService --> PrismaService
-    VisitorService --> RealtimeGateway
-    VisitorService --> NotificationService
-    AnnouncementService --> PrismaService
-    AnnouncementService --> NotificationService
-    NotificationService --> PrismaService
-    AuditService --> PrismaService
-    RealtimeGateway --> PrismaService
+    AuthRouter --> Session
+    AuthRouter --> SecurityModule
+    TenantRouter --> Session
+    TenantRouter --> AuditService
+    MaintenanceRouter --> Session
+    MaintenanceRouter --> SecurityModule
+    MaintenanceRouter --> MLClient
+    MaintenanceRouter --> NotificationService
+    MaintenanceRouter --> AuditService
+    ComplaintRouter --> Session
+    ComplaintRouter --> MLClient
+    ComplaintRouter --> NotificationService
+    ComplaintRouter --> AuditService
+    BookingRouter --> Session
+    BookingRouter --> RealtimeGateway
+    BookingRouter --> NotificationService
+    BookingRouter --> AuditService
+    VisitorRouter --> Session
+    VisitorRouter --> SecurityModule
+    VisitorRouter --> RealtimeGateway
+    VisitorRouter --> NotificationService
+    VisitorRouter --> AuditService
+    AnnouncementRouter --> Session
+    AnnouncementRouter --> NotificationService
+    AnnouncementRouter --> AuditService
+    NotificationService --> Session
+    AuditService --> Session
+    Dependencies --> Session
+    Dependencies --> SecurityModule
+    AuthRouter ..> Dependencies
+    MaintenanceRouter ..> Dependencies
+    ComplaintRouter ..> Dependencies
+    BookingRouter ..> Dependencies
+    VisitorRouter ..> Dependencies
+    AnnouncementRouter ..> Dependencies
+    TenantRouter ..> Dependencies
 ```
 
 ---
@@ -534,13 +565,15 @@ classDiagram
 
 | Pattern                     | Where applied                                                                 | Purpose                                                                                |
 | --------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Repository / ORM**        | `PrismaService` injected into all services                                    | Abstracts DB access; tenant filter auto-injected via Prisma Client Extension           |
-| **Strategy**                | `NotificationService` — channel selection per notification type               | Channels resolved at runtime without conditionals scattered across callers             |
-| **Facade**                  | `MLClientService`                                                             | Single, clean interface to the ML service; hides timeout + fallback logic from callers |
-| **Observer / Event-driven** | `RealtimeGateway` emitting Socket.IO events                                   | Decouples booking/SOS/complaint state changes from client update logic                 |
-| **Queue / Worker**          | `NotificationService` + BullMQ                                                | Decouples slow I/O (SMS, email) from the synchronous HTTP request lifecycle            |
-| **Guard / Interceptor**     | `JwtAuthGuard`, `RolesGuard`, `TenantScopedGuard`, `TenantContextInterceptor` | Cross-cutting security applied declaratively at the controller level                   |
-| **Fallback / Null Object**  | `MLClientService.withFallback()`                                              | Keeps system functional when ML service is degraded or offline                         |
+| **Repository / ORM**        | Request-scoped SQLAlchemy `Session` supplied by `get_db()`                    | Abstracts DB access; tenant-scoped queries filter on the `get_tenant_id` dependency    |
+| **Dependency Injection**    | FastAPI `Depends()` on every route                                            | A route's auth, role and tenant requirements are readable from its own signature       |
+| **Strategy**                | `NotificationService` — `CHANNELS` map per notification type                  | Channels resolved at runtime without conditionals scattered across callers             |
+| **Facade**                  | `MLClient`                                                                    | Single, clean interface to the ML service; hides timeout + fallback logic from callers |
+| **Observer / Event-driven** | `RealtimeGateway` emitting WebSocket events                                   | Decouples booking/SOS/complaint state changes from client update logic                 |
+| **Queue / Worker**          | `NotificationService` + Redis job queue                                       | Decouples slow I/O (SMS, email) from the synchronous HTTP request lifecycle            |
+| **Guard**                   | `get_current_user`, `require_roles(...)`, `get_tenant_id`                     | Cross-cutting security applied declaratively as route dependencies                     |
+| **Fallback / Null Object**  | `MLClient._rule_based()`                                                      | Keeps system functional when ML service is degraded or offline                         |
+| **State machine**           | Complaint `_ALLOWED_TRANSITIONS` map                                          | Lifecycle moves are validated centrally, so the audit trail cannot be short-circuited  |
 
 ---
 
@@ -550,15 +583,17 @@ classDiagram
 classDiagram
     direction TB
 
-    AuthService --> UserService : delegates user lookup
-    MaintenanceService --> MLClientService : payment risk
-    ComplaintService --> MLClientService : classify
-    ComplaintService --> AuditService : log state changes
-    BookingService --> RealtimeGateway : emit slot_taken
-    VisitorService --> RealtimeGateway : emit sos.raised / sos.acknowledged
-    MaintenanceService --> NotificationService : payment alerts
-    ComplaintService --> NotificationService : status alerts
-    BookingService --> NotificationService : booking confirmed
-    VisitorService --> NotificationService : SOS alerts
-    AnnouncementService --> NotificationService : announcement push
+    AuthRouter --> SecurityModule : hash · sign · verify
+    MaintenanceRouter --> SecurityModule : verify payment signature
+    VisitorRouter --> SecurityModule : generate QR token
+    MaintenanceRouter --> MLClient : payment risk
+    ComplaintRouter --> MLClient : classify
+    ComplaintRouter --> AuditService : log state changes
+    BookingRouter --> RealtimeGateway : emit slot_taken
+    VisitorRouter --> RealtimeGateway : emit sos.raised / sos.acknowledged
+    MaintenanceRouter --> NotificationService : payment alerts
+    ComplaintRouter --> NotificationService : status alerts
+    BookingRouter --> NotificationService : booking confirmed
+    VisitorRouter --> NotificationService : SOS alerts
+    AnnouncementRouter --> NotificationService : announcement push
 ```

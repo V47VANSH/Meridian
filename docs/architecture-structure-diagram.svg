@@ -58,57 +58,57 @@
   </g>
 
   <!-- ===================================================================== -->
-  <!-- BACKEND — NestJS Modular Monolith                                      -->
+  <!-- BACKEND — FastAPI Modular Monolith                                      -->
   <!-- ===================================================================== -->
   <g>
     <rect x="60" y="330" width="1080" height="470" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2" filter="url(#shadow)"/>
-    <text x="84" y="360" class="ctitle" fill="#6d28d9">NestJS API — Modular Monolith</text>
+    <text x="84" y="360" class="ctitle" fill="#6d28d9">FastAPI API — Modular Monolith</text>
     <text x="84" y="380" class="csub" fill="#8b5cf6">Deployed on Render</text>
 
     <!-- Module grid (3 rows x 4 cols) -->
     <!-- Row 1 -->
     <g class="mod">
       <rect x="90"  y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="207" y="431" class="node" fill="#5b21b6" text-anchor="middle">AuthModule</text>
+      <text x="207" y="431" class="node" fill="#5b21b6" text-anchor="middle">auth router</text>
       <rect x="345" y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="462" y="431" class="node" fill="#5b21b6" text-anchor="middle">TenantModule</text>
+      <text x="462" y="431" class="node" fill="#5b21b6" text-anchor="middle">tenants router</text>
       <rect x="600" y="398" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="717" y="431" class="node" fill="#5b21b6" text-anchor="middle">UserModule</text>
+      <text x="717" y="431" class="node" fill="#5b21b6" text-anchor="middle">users + flats router</text>
       <rect x="855" y="398" width="255" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="982" y="431" class="node" fill="#5b21b6" text-anchor="middle">MaintenanceModule</text>
+      <text x="982" y="431" class="node" fill="#5b21b6" text-anchor="middle">maintenance router</text>
     </g>
     <!-- Row 2 -->
     <g class="mod">
       <rect x="90"  y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="207" y="503" class="node" fill="#5b21b6" text-anchor="middle">ComplaintModule</text>
+      <text x="207" y="503" class="node" fill="#5b21b6" text-anchor="middle">complaints router</text>
       <rect x="345" y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="462" y="503" class="node" fill="#5b21b6" text-anchor="middle">BookingModule</text>
+      <text x="462" y="503" class="node" fill="#5b21b6" text-anchor="middle">bookings router</text>
       <rect x="600" y="470" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="717" y="503" class="node" fill="#5b21b6" text-anchor="middle">VisitorModule</text>
+      <text x="717" y="503" class="node" fill="#5b21b6" text-anchor="middle">visitors router</text>
       <rect x="855" y="470" width="255" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="982" y="503" class="node" fill="#5b21b6" text-anchor="middle">AnnouncementModule</text>
+      <text x="982" y="503" class="node" fill="#5b21b6" text-anchor="middle">announcements router</text>
     </g>
     <!-- Row 3 -->
     <g class="mod">
       <rect x="90"  y="542" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="207" y="575" class="node" fill="#5b21b6" text-anchor="middle">NotificationModule</text>
+      <text x="207" y="575" class="node" fill="#5b21b6" text-anchor="middle">NotificationService</text>
       <rect x="345" y="542" width="235" height="56" rx="8" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.4"/>
-      <text x="462" y="575" class="node" fill="#5b21b6" text-anchor="middle">AuditModule</text>
+      <text x="462" y="575" class="node" fill="#5b21b6" text-anchor="middle">AuditService</text>
       <rect x="600" y="542" width="235" height="56" rx="8" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.4"/>
       <text x="717" y="568" class="node" fill="#3730a3" text-anchor="middle">RealtimeGateway</text>
-      <text x="717" y="586" class="nodesub" fill="#4338ca" text-anchor="middle">Socket.IO</text>
+      <text x="717" y="586" class="nodesub" fill="#4338ca" text-anchor="middle">WebSockets</text>
       <rect x="855" y="542" width="255" height="56" rx="8" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.4"/>
-      <text x="982" y="568" class="node" fill="#3730a3" text-anchor="middle">MLClientModule</text>
+      <text x="982" y="568" class="node" fill="#3730a3" text-anchor="middle">MLClient</text>
       <text x="982" y="586" class="nodesub" fill="#4338ca" text-anchor="middle">HTTP + shared secret</text>
     </g>
 
-    <!-- PrismaService bar -->
+    <!-- SQLAlchemy Session bar -->
     <rect x="90" y="620" width="1020" height="66" rx="9" fill="#c4b5fd" stroke="#7c3aed" stroke-width="1.8"/>
-    <text x="600" y="649" font-size="15" font-weight="700" fill="#4c1d95" text-anchor="middle">PrismaService — Tenant-scoped ORM</text>
+    <text x="600" y="649" font-size="15" font-weight="700" fill="#4c1d95" text-anchor="middle">SQLAlchemy Session — Tenant-scoped</text>
     <text x="600" y="669" class="nodesub" fill="#5b21b6" text-anchor="middle">Every query filtered by tenant_id · single data-access layer</text>
 
-    <text x="600" y="720" font-size="12" fill="#8b5cf6" text-anchor="middle" font-style="italic">All feature modules depend on PrismaService for persistence</text>
-    <!-- subtle connectors from module rows down to prisma -->
+    <text x="600" y="720" font-size="12" fill="#8b5cf6" text-anchor="middle" font-style="italic">All feature routers depend on the SQLAlchemy Session for persistence</text>
+    <!-- subtle connectors from router rows down to the ORM -->
     <path d="M207,598 L207,620" class="edgeDash"/>
     <path d="M462,598 L462,620" class="edgeDash"/>
     <path d="M717,598 L717,620" class="edgeDash"/>
@@ -152,16 +152,16 @@
     <line x1="120" y1="1000" x2="315" y2="1000" stroke="#fbbf24" stroke-width="1.2"/>
     <text x="217" y="1024" class="nodesub" fill="#78350f" text-anchor="middle">Cache</text>
     <text x="217" y="1046" class="nodesub" fill="#78350f" text-anchor="middle">Distributed locks</text>
-    <text x="217" y="1068" class="nodesub" fill="#78350f" text-anchor="middle">BullMQ job queue</text>
-    <text x="217" y="1090" class="nodesub" fill="#78350f" text-anchor="middle">WS pub-sub adapter</text>
+    <text x="217" y="1068" class="nodesub" fill="#78350f" text-anchor="middle">Redis job queue</text>
+    <text x="217" y="1090" class="nodesub" fill="#78350f" text-anchor="middle">WS pub/sub</text>
 
     <rect x="360" y="930" width="270" height="240" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
     <text x="495" y="965" class="node" fill="#92400e" text-anchor="middle">PostgreSQL</text>
     <text x="495" y="985" class="nodesub" fill="#b45309" text-anchor="middle">Supabase</text>
     <line x1="390" y1="1000" x2="600" y2="1000" stroke="#fbbf24" stroke-width="1.2"/>
-    <text x="495" y="1030" class="nodesub" fill="#78350f" text-anchor="middle">15 relational tables</text>
+    <text x="495" y="1030" class="nodesub" fill="#78350f" text-anchor="middle">18 relational tables</text>
     <text x="495" y="1054" class="nodesub" fill="#78350f" text-anchor="middle">Tenant isolation</text>
-    <text x="495" y="1078" class="nodesub" fill="#78350f" text-anchor="middle">Row-level security</text>
+    <text x="495" y="1078" class="nodesub" fill="#78350f" text-anchor="middle">Composite tenant indexes</text>
 
     <rect x="645" y="930" width="270" height="240" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
     <text x="780" y="965" class="node" fill="#92400e" text-anchor="middle">Supabase Storage</text>
@@ -182,7 +182,7 @@
     <rect x="1020" y="930" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
     <text x="1170" y="972" class="node" fill="#334155" text-anchor="middle">Razorpay</text>
     <text x="1170" y="994" class="nodesub" fill="#475569" text-anchor="middle">Payments · Orders API</text>
-    <text x="1170" y="1016" class="nodesub" fill="#475569" text-anchor="middle">Webhook (HMAC verified)</text>
+    <text x="1170" y="1016" class="nodesub" fill="#475569" text-anchor="middle">HMAC-verified confirmation</text>
 
     <rect x="1340" y="930" width="300" height="112" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
     <text x="1490" y="972" class="node" fill="#334155" text-anchor="middle">SendGrid</text>
@@ -209,19 +209,19 @@
   <!-- Client WebSocket <-> RealtimeGateway -->
   <path d="M960,260 C960,300 820,470 780,542" class="edge" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
   <rect class="elabelbg" x="852" y="360" width="150" height="18" rx="3"/>
-  <text class="elabel" x="927" y="373" text-anchor="middle">WebSocket · Socket.IO</text>
+  <text class="elabel" x="927" y="373" text-anchor="middle">WebSocket</text>
 
-  <!-- Prisma -> PostgreSQL -->
+  <!-- ORM -> PostgreSQL -->
   <path d="M540,686 C540,760 520,820 500,880" class="edge" marker-end="url(#arrow)"/>
   <rect class="elabelbg" x="470" y="792" width="130" height="18" rx="3"/>
-  <text class="elabel" x="535" y="805" text-anchor="middle">SQL via Prisma ORM</text>
+  <text class="elabel" x="535" y="805" text-anchor="middle">SQL via SQLAlchemy</text>
 
   <!-- Backend (NOTIF/BOOK/RT) -> Redis -->
   <path d="M280,686 C260,760 240,820 225,880" class="edgeAmber" marker-end="url(#arrowAmber)"/>
   <rect class="elabelbg" x="120" y="792" width="180" height="18" rx="3"/>
   <text class="elabel" x="210" y="805" text-anchor="middle" fill="#b45309">Locks · Queue · Pub-Sub</text>
 
-  <!-- MLClientModule -> ML Service -->
+  <!-- MLClient -> ML Service -->
   <path d="M1110,570 L1200,530" class="edgeTeal" marker-end="url(#arrowTeal)"/>
   <rect class="elabelbg" x="1110" y="533" width="98" height="18" rx="3"/>
   <text class="elabel" x="1159" y="546" text-anchor="middle" fill="#0d9488">HTTP + secret</text>
@@ -234,7 +234,7 @@
   <!-- MaintenanceModule <-> Razorpay -->
   <path d="M1010,426 C1120,560 1160,760 1170,928" class="edge" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
   <rect class="elabelbg" x="1120" y="700" width="150" height="18" rx="3"/>
-  <text class="elabel" x="1195" y="713" text-anchor="middle">Orders API + Webhook</text>
+  <text class="elabel" x="1195" y="713" text-anchor="middle">Orders API + signed confirm</text>
 
   <!-- NotificationModule -> SendGrid / Twilio / ServiceWorker / Sentry (fan bundle label) -->
   <path d="M325,560 C700,760 1150,850 1400,930" class="edge" marker-end="url(#arrow)"/>

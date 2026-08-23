@@ -1,0 +1,112 @@
+# Backend CI (docs/05-devops-architecture.md section 4).
+#
+# The suite itself needs no services — every test builds its own throwaway
+# SQLite database. The Postgres job exists for what SQLite cannot tell us:
+# whether the Alembic revisions actually apply on the engine production runs,
+# and whether any query depends on SQLite-specific behaviour.
+
+name: ci-backend
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci-backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci-backend.yml"
+
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  test:
+    name: lint and test (sqlite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff==0.8.4
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+        env:
+          JWT_SECRET: ci-secret
+          RAZORPAY_KEY_SECRET: ci_gateway_secret
+          SEED_ON_STARTUP: "false"
+
+      - name: Check the committed OpenAPI spec is current
+        # The spec is generated from the live route table, so a route added
+        # without re-exporting it would ship a contract the frontend codegens
+        # against and that no longer matches the API.
+        run: |
+          python scripts/export_openapi.py
+          if ! git diff --quiet -- openapi.yaml; then
+            echo "::error::openapi.yaml is out of date. Run: python scripts/export_openapi.py"
+            git diff -- openapi.yaml
+            exit 1
+          fi
+
+  postgres:
+    name: migrations (postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acms
+          POSTGRES_PASSWORD: acms
+          POSTGRES_DB: acms
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acms"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://acms:acms@localhost:5432/acms
+      JWT_SECRET: ci-secret
+      RAZORPAY_KEY_SECRET: ci_gateway_secret
+      SEED_ON_STARTUP: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "psycopg[binary]==3.2.3"
+
+      - name: Apply migrations
+        run: alembic upgrade head
+
+      - name: Confirm the schema is fully migrated
+        # An empty autogenerate diff proves the revisions describe the models.
+        # Anything else means a model changed without a matching revision.
+        run: alembic check

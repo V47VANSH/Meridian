@@ -1,0 +1,28 @@
+{
+  "trained_at": "2026-08-22T14:11:50.370561+00:00",
+  "dataset_size": 6000,
+  "test_size": 1200,
+  "feature_order": [
+    "past_late_count",
+    "avg_days_late",
+    "current_dues_amount",
+    "tenure_months",
+    "month"
+  ],
+  "data_source": "simulated",
+  "metrics": {
+    "roc_auc": 0.6684,
+    "bayes_optimal_roc_auc": 0.6818,
+    "share_of_achievable": 0.9804
+  },
+  "floors": {
+    "roc_auc": 0.65
+  },
+  "feature_importances": {
+    "past_late_count": 0.0751,
+    "avg_days_late": 0.3135,
+    "current_dues_amount": 0.1959,
+    "tenure_months": 0.3478,
+    "month": 0.0678
+  }
+}

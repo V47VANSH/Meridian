@@ -7,7 +7,7 @@ Owner: Person E · Parent doc: [00 — Architecture Overview](00-architecture-ov
 | Component | Host | Notes |
 |---|---|---|
 | Frontend (React PWA) | Vercel | Auto-deploy from `main`, preview deploy per PR |
-| Backend (NestJS) | Render (Web Service, Docker) | Auto-deploy from `main` |
+| Backend (FastAPI) | Render (Web Service, Docker) | Auto-deploy from `main` |
 | ML service (FastAPI) | Render (Web Service, Docker) | Separate service, separate repo folder, own deploy |
 | Database + Storage | Supabase | Postgres + object storage, bundled |
 | Cache/Queue | Upstash Redis | Free tier, serverless-friendly (REST + TCP) |
@@ -24,7 +24,7 @@ No Terraform/IaC layer — at this scope, `render.yaml` + `vercel.json` + GitHub
 ```
 /
   frontend/            # React PWA
-  backend/             # NestJS API
+  backend/             # FastAPI API
   ml-service/          # FastAPI ML service
   docs/                # this architecture, ADRs, etc.
   .github/workflows/   # CI/CD pipelines
@@ -52,12 +52,14 @@ install → typecheck → lint → unit test (Vitest) → build
 
 **`ci-backend.yml`** (path-filtered to `backend/**`)
 ```
-install → typecheck → lint → spin up Postgres+Redis service containers
-→ prisma migrate deploy (to the ephemeral test DB) → unit test (Jest)
-→ integration test (supertest) → regenerate openapi.json, diff against committed spec
-→ build
+install (pip) → lint (ruff) → pytest (SQLite, no services needed)
+→ spin up Postgres+Redis service containers → alembic upgrade head
+→ pytest against Postgres (catches dialect-specific issues SQLite hides)
+→ regenerate openapi.yaml, diff against committed spec
 → (on main) deploy to Render via Render's GitHub integration / deploy hook
 ```
+
+The suite runs twice deliberately. The SQLite pass needs no service containers and gives fast feedback on every push; the Postgres pass catches the things SQLite is lenient about — partial index behaviour, stricter type coercion, and constraint enforcement differences.
 
 **`ci-ml.yml`** (path-filtered to `ml-service/**`)
 ```
