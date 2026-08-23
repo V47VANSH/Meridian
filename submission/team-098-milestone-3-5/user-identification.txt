@@ -1,0 +1,157 @@
+MERIDIAN - APARTMENT COMPLEX MANAGEMENT SYSTEM
+Team 98 | IITM BS Degree, Software Engineering | May 2026
+User Identification
+
+
+PROBLEM CONTEXT
+===============
+
+Apartment societies coordinate maintenance collection, complaints, shared
+facilities, visitors and emergencies through spreadsheets, WhatsApp groups,
+phone calls and paper registers. Our user research surfaced five recurring pain
+points, each traceable to the same root cause - nothing is recorded anywhere
+both sides can see:
+
+  1. No visibility into what is owed, or whether a payment was received.
+  2. Complaints raised verbally, leaving no trace and no accountability.
+  3. Shared facilities double-booked because the calendar lives in one head.
+  4. Visitors admitted on the strength of a phone call to the resident.
+  5. Owners living elsewhere with no way to see any of the above.
+
+The platform is built as multi-tenant SaaS: one deployment serves many
+societies, each isolated by tenant_id. Users therefore exist within a society,
+except for the platform operator who sits above all of them.
+
+
+PRIMARY USERS
+=============
+The people who use the system most often, and whose problems it exists to
+solve. Every core workflow begins or ends with one of them.
+
+1. RESIDENT / FLAT OWNER  (role: RESIDENT_OWNER)
+   Lives in the society and holds or rents a flat.
+   Pain points addressed:
+     - Cannot see what maintenance is due until told.
+     - Complaints disappear once spoken aloud.
+     - No reliable way to reserve a shared facility.
+     - Must telephone the gate to admit each visitor.
+   Capabilities:
+     - View and pay maintenance invoices; see payment history.
+     - Raise complaints and follow their status through to resolution.
+     - View facility availability, book a slot, cancel a booking.
+     - Issue and revoke single-use digital guest passes.
+     - Raise an emergency SOS alert.
+     - Read society announcements and personal notifications.
+
+2. SOCIETY OFFICIAL  (role: SOCIETY_OFFICIAL)
+   Manages the society's day-to-day operations; typically a committee member.
+   Pain points addressed:
+     - Chasing dues without a record of who has paid.
+     - No queue or priority order for incoming complaints.
+     - Facility clashes escalating into disputes.
+     - No single place holding society records.
+   Capabilities:
+     - Raise invoices, record offline payments, send reminders, view
+       collection summaries.
+     - Triage complaints: reprioritise, assign to staff, advance status.
+     - Publish and black out facility slots; view the society-wide schedule.
+     - Maintain the resident directory; create users and link them to flats.
+     - Post announcements to a chosen audience.
+     - Review the audit log of state-changing actions.
+
+
+SECONDARY USERS
+===============
+Depend on the system but interact with it less frequently, or in a narrower
+way, than primary users.
+
+3. NON-RESIDENT FLAT OWNER  (role: NON_RESIDENT_OWNER)
+   Owns a flat but lives elsewhere; often the flat is tenanted.
+   Pain points addressed:
+     - No remote visibility of dues, complaints or society decisions.
+     - Cannot help a tenant admit a visitor while away.
+   Capabilities:
+     - Track dues and complaint status for the owned flat remotely.
+     - Issue guest passes for the flat without being present.
+     - Read announcements and notifications.
+
+4. VISITOR / GUEST  (no account)
+   A guest, delivery agent, cab driver or service visitor attending a flat.
+   Deliberately NOT a registered user. A visitor holds a signed, time-boxed,
+   single-use pass token issued by a resident. This keeps the authentication
+   model simple - no visitor registration or login - while still giving the
+   guard something cryptographically verifiable to check at the gate.
+   Capabilities:
+     - Present a QR-encoded pass at the gate for verification.
+
+
+TERTIARY USERS
+==============
+Society staff who act on work the system generates. They consume tasks and
+alerts rather than initiating workflows.
+
+5. SECURITY GUARD  (role: SECURITY_GUARD)
+   Staffs the gate and responds to emergencies.
+   Pain points addressed:
+     - No way to confirm an unexpected visitor is genuinely expected.
+     - No record of who entered and when.
+     - Emergency calls arriving by shouting or telephone.
+   Capabilities:
+     - Verify a guest pass; the pass is consumed on first successful use, so a
+       photographed QR cannot be replayed.
+     - Receive, acknowledge and resolve SOS alerts.
+
+6. MAINTENANCE STAFF  (role: MAINTENANCE_STAFF)
+   Carries out repairs assigned by an official.
+   Capabilities:
+     - View complaints assigned to them, ordered by urgency.
+     - Advance complaint status as work progresses, including a one-tap
+       resolve for issues fixed on the spot.
+
+7. CLEANING STAFF  (role: CLEANING_STAFF)
+   Handles cleaning and hygiene tasks raised as complaints.
+   Capabilities:
+     - View and progress assigned cleaning complaints.
+
+8. SERVICE PROVIDER  (role: SERVICE_PROVIDER)
+   External contractor engaged for specialist work.
+   Capabilities:
+     - Receive and fulfil assigned service requests.
+
+
+PLATFORM USER
+=============
+Sits above every society rather than inside one.
+
+9. PLATFORM ADMINISTRATOR  (role: SUPER_ADMIN)
+   Operates the platform itself; not a member of any society.
+   Capabilities:
+     - Onboard and manage societies (tenants).
+     - Has no tenant_id, and therefore no access to any society's operational
+       data through the tenant-scoped endpoints.
+
+
+USER-TO-EPIC MAP
+================
+
+Epic                                  Primary actors            Supporting actors
+------------------------------------  ------------------------  --------------------------
+E1 Maintenance Management             Resident, Official        Non-Resident Owner
+E2 Complaint Management               Resident, Official        Maintenance/Cleaning Staff,
+                                                                Service Provider
+E3 Facility Management                Resident, Official        -
+E4 Visitor & Emergency Management     Resident, Security Guard  Visitor, Non-Resident Owner
+E5 Society Administration             Official                  All roles (announcements),
+                                                                Super Admin (onboarding)
+E6 Non-Resident Owner Services        Non-Resident Owner        Official
+
+
+ACCESS CONTROL SUMMARY
+======================
+
+Every request's society scope is taken from the authenticated token's claim,
+never from a request body or query parameter, so a user cannot ask for another
+society's data. Role permissions are enforced as route dependencies.
+
+A cross-society read returns 404 rather than 403: a 403 would confirm the
+record exists, which itself leaks that another society holds that identifier.

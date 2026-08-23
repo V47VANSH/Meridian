@@ -250,6 +250,9 @@ the API but there is no upload endpoint to store a file against it.
 
 ## Documentation
 
+**Submitting?** [SUBMISSION.md](SUBMISSION.md) covers both submissions and what
+still needs doing by hand.
+
 **Deploying?** Everything is in [DEPLOYMENT.md](DEPLOYMENT.md) — Supabase, Render
 and Vercel, step by step.
 

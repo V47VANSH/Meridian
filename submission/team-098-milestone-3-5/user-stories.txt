@@ -1,0 +1,326 @@
+MERIDIAN - APARTMENT COMPLEX MANAGEMENT SYSTEM
+Team 98 | IITM BS Degree, Software Engineering | May 2026
+User Stories
+
+
+FORMAT AND METHOD
+=================
+
+Each story follows the required form:
+
+    As a [type of user], I want [an action], so that [a benefit/value].
+
+Stories were written against the SMART guidelines - each names a specific
+actor and action, has an observable outcome that can be demonstrated, is
+achievable within a sprint, is relevant to a pain point identified in user
+research, and is bounded by the sprint it was scheduled in.
+
+The endpoints listed under each story are not documentation written after
+the fact. They are published inside the API contract itself, as an
+'x-user-story-mapping' extension in api-doc.yaml, so the traceability from
+story to implementation travels with the specification and is regenerated
+from the live route table whenever the API changes.
+
+Total: 24 user stories across 6 epics.
+
+
+==========================================================================
+E1 — MAINTENANCE MANAGEMENT
+==========================================================================
+
+US-1.1
+------
+  As a resident,
+  I want to see my maintenance dues,
+  so that I know what I owe and by when.
+
+  Implemented by:
+    - GET /api/v1/maintenance/invoices
+    - GET /api/v1/maintenance/invoices/{invoice_id}
+    - GET /api/v1/maintenance/payments/{payment_id}
+
+US-1.2
+------
+  As a resident,
+  I want to pay my maintenance online,
+  so that I do not have to visit the society office.
+
+  Implemented by:
+    - POST /api/v1/maintenance/invoices/{invoice_id}/pay
+    - POST /api/v1/maintenance/invoices/{invoice_id}/payments/confirm
+    - POST /api/v1/maintenance/invoices/{invoice_id}/remind
+    - GET /api/v1/maintenance/payments
+
+US-1.3
+------
+  As a society official,
+  I want to raise monthly invoices and track collection,
+  so that dues are transparent and auditable.
+
+  Implemented by:
+    - POST /api/v1/maintenance/invoices
+    - POST /api/v1/maintenance/invoices/{invoice_id}/offline-payment
+    - GET /api/v1/maintenance/summary
+
+US-1.4
+------
+  As a society official,
+  I want to know which flats are likely to pay late,
+  so that I can send reminders before the due date.
+
+  Implemented by:
+    - GET /api/v1/maintenance/flats/{flat_id}/risk-score
+
+
+==========================================================================
+E2 — COMPLAINT MANAGEMENT
+==========================================================================
+
+US-2.1
+------
+  As a resident,
+  I want to raise a complaint,
+  so that maintenance issues are recorded and acted on.
+
+  Implemented by:
+    - POST /api/v1/complaints
+
+US-2.2
+------
+  As a resident,
+  I want to track my complaint's progress,
+  so that I know it has not been forgotten.
+
+  Implemented by:
+    - GET /api/v1/complaints
+    - GET /api/v1/complaints/summary
+    - GET /api/v1/complaints/{complaint_id}
+
+US-2.3
+------
+  As a society official,
+  I want complaints categorised and prioritised automatically,
+  so that urgent issues surface first.
+
+  Implemented by:
+    - POST /api/v1/complaints
+    - GET /api/v1/complaints
+    - PATCH /api/v1/complaints/{complaint_id}/priority
+
+US-2.4
+------
+  As a society official,
+  I want to assign complaints to staff and record each status change,
+  so that responsibility is clear.
+
+  Implemented by:
+    - POST /api/v1/complaints/{complaint_id}/assign
+    - PATCH /api/v1/complaints/{complaint_id}/status
+
+
+==========================================================================
+E3 — FACILITY MANAGEMENT
+==========================================================================
+
+US-3.1
+------
+  As a resident,
+  I want to see which facility slots are free,
+  so that I can plan when to use the clubhouse.
+
+  Implemented by:
+    - GET /api/v1/facilities
+    - GET /api/v1/facilities/{facility_id}/slots
+    - GET /api/v1/bookings/{booking_id}
+
+US-3.2
+------
+  As a resident,
+  I want to book a slot without clashing with anyone else,
+  so that double-bookings stop happening.
+
+  Implemented by:
+    - POST /api/v1/bookings
+    - GET /api/v1/bookings
+
+US-3.3
+------
+  As a resident,
+  I want to cancel a booking,
+  so that the slot is freed for someone else.
+
+  Implemented by:
+    - POST /api/v1/bookings/{booking_id}/cancel
+
+US-3.4
+------
+  As a society official,
+  I want to publish and black out slots,
+  so that the calendar reflects reality.
+
+  Implemented by:
+    - POST /api/v1/facilities
+    - POST /api/v1/facilities/{facility_id}/slots
+    - PATCH /api/v1/facilities/{facility_id}/slots/{slot_id}
+
+
+==========================================================================
+E4 — VISITOR & EMERGENCY MANAGEMENT
+==========================================================================
+
+US-4.1
+------
+  As a resident,
+  I want to issue a digital pass to my visitor,
+  so that the guard can admit them without phoning me.
+
+  Implemented by:
+    - POST /api/v1/visitors/guest-passes
+    - GET /api/v1/visitors/guest-passes
+    - GET /api/v1/visitors/guest-passes/{pass_id}
+
+US-4.2
+------
+  As a security guard,
+  I want to verify a pass by scanning it,
+  so that only expected visitors enter and no pass can be reused.
+
+  Implemented by:
+    - POST /api/v1/visitors/guest-passes/{qr_token}/verify
+
+US-4.3
+------
+  As a resident,
+  I want to revoke a pass,
+  so that a cancelled visit cannot be used to get in.
+
+  Implemented by:
+    - POST /api/v1/visitors/guest-passes/{pass_id}/revoke
+
+US-4.4
+------
+  As a resident,
+  I want an SOS button,
+  so that guards are alerted instantly in an emergency.
+
+  Implemented by:
+    - POST /api/v1/sos
+    - GET /api/v1/sos
+    - GET /api/v1/sos/{incident_id}
+
+US-4.5
+------
+  As a security guard,
+  I want to acknowledge and close an SOS,
+  so that the resident knows someone is responding.
+
+  Implemented by:
+    - POST /api/v1/sos/{incident_id}/acknowledge
+    - POST /api/v1/sos/{incident_id}/resolve
+
+
+==========================================================================
+E5 — SOCIETY ADMINISTRATION
+==========================================================================
+
+US-5.1
+------
+  As any user,
+  I want to register and log in securely,
+  so that society data is only accessible to authorised people.
+
+  Implemented by:
+    - POST /api/v1/auth/register
+    - POST /api/v1/auth/login
+    - POST /api/v1/auth/refresh
+    - POST /api/v1/auth/logout
+    - GET /api/v1/auth/me
+    - GET /api/v1/dashboard/resident
+
+US-5.2
+------
+  As a society official,
+  I want to manage flats and residents,
+  so that society records stay accurate.
+
+  Implemented by:
+    - POST /api/v1/flats
+    - GET /api/v1/flats
+    - POST /api/v1/flats/{flat_id}/occupants
+    - GET /api/v1/users
+    - GET /api/v1/dashboard/official
+    - GET /api/v1/audit-logs
+
+US-5.3
+------
+  As a society official,
+  I want to post announcements,
+  so that residents are informed through the platform.
+
+  Implemented by:
+    - POST /api/v1/announcements
+    - GET /api/v1/announcements
+
+US-5.4
+------
+  As a platform operator,
+  I want to onboard societies,
+  so that one deployment can serve many of them in isolation.
+
+  Implemented by:
+    - POST /api/v1/tenants
+    - GET /api/v1/tenants
+
+
+==========================================================================
+E6 — NON-RESIDENT OWNER SERVICES
+==========================================================================
+
+US-6.1
+------
+  As a non-resident owner,
+  I want to track my flat's dues and complaints remotely,
+  so that I stay informed about my property.
+
+  Implemented by:
+    - GET /api/v1/maintenance/invoices
+    - GET /api/v1/complaints
+    - GET /api/v1/dashboard/non-resident
+
+US-6.2
+------
+  As a non-resident owner,
+  I want to follow society notices,
+  so that I do not miss decisions affecting my flat.
+
+  Implemented by:
+    - GET /api/v1/announcements
+    - GET /api/v1/notifications
+    - POST /api/v1/notifications/{notification_id}/read
+
+US-6.3
+------
+  As a non-resident owner,
+  I want to issue guest passes for my tenants' visitors,
+  so that access works while I am away.
+
+  Implemented by:
+    - POST /api/v1/visitors/guest-passes
+
+
+==========================================================================
+COVERAGE
+==========================================================================
+
+  E1 — Maintenance Management                        4 stories
+  E2 — Complaint Management                          4 stories
+  E3 — Facility Management                           4 stories
+  E4 — Visitor & Emergency Management                5 stories
+  E5 — Society Administration                        4 stories
+  E6 — Non-Resident Owner Services                   3 stories
+
+  TOTAL                                              24 stories
+
+Every story above is implemented and covered by automated tests. The full
+test inventory, including the expected-vs-actual case that did not match on
+first run, is in the milestone reports.
