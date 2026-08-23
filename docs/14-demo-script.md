@@ -21,11 +21,22 @@ Do all of this **before** you start recording.
 | ML service | Running, `/health` shows both models `true` |
 | Frontend | Running |
 | `ML_SERVICE_URL` | **Set**, and the backend restarted since. Without it every complaint is keyword-classified and step 4 shows nothing |
+| ML actually reached | Raise one test complaint and check the response: `classification_confidence` around 0.9 means the model answered; `0.0` means the fallback did |
 | Browser | Two windows: one normal, one incognito. Zoom ~110% |
 | Screen | Close other tabs, silence notifications, hide bookmarks bar |
 
-**If demoing the deployed site**, open it once a minute beforehand. Render's free
-tier sleeps and the first request takes 30–50 seconds.
+**If demoing the deployed site**, open **both** `/health` endpoints a minute
+beforehand — the API *and* the ML service:
+
+- <https://may2026-team-098.onrender.com/health>
+- <https://meridian-ml-5cig.onrender.com/health>
+
+Render's free tier sleeps after ~15 minutes idle and takes 30–50 seconds to wake.
+Warming the API stops the first page load stalling. Warming the ML service
+matters for a subtler reason: the API only waits `ML_TIMEOUT_SECONDS` for a
+classification, so a sleeping model service times out and the keyword fallback
+answers instead — step 4 would then show a complaint flagged for manual triage
+rather than the classifier confidently filling in the category.
 
 **Rehearse once untimed**, then record. Two or three takes and a cut is far
 easier than chasing one perfect run.

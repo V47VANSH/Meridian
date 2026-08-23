@@ -334,8 +334,30 @@ This is deliberate, and it is why you can deploy with almost nothing configured:
 
 **Free-tier spin-down.** Render free services sleep after ~15 minutes idle, and
 the next request takes **30–50 seconds** while the container wakes. This is the
-single most likely thing to derail a live demo. **Open the URL a minute before
-you present.**
+single most likely thing to derail a live demo. **Open both URLs a minute before
+you present** — the API *and* the ML service.
+
+**Spin-down silently disables the ML service.** This one is worth understanding,
+because nothing about it looks like a failure. The API gives the ML service
+`ML_TIMEOUT_SECONDS` to answer, defaulting to **2 seconds** — deliberately
+short, because complaint submission must never wait on a slow model. A sleeping
+Render instance needs 30–50 seconds to wake. So the first complaint after an idle
+period times out, the keyword fallback answers, the complaint is created and
+flagged for manual triage, and everything looks fine.
+
+You can tell which one answered: a complaint classified by the trained model
+comes back with `classification_confidence` around 0.9 and
+`needs_manual_triage: false`. The fallback returns confidence `0.0` and always
+flags for triage.
+
+Two ways to handle it, and they are complementary:
+
+- **Warm the ML service before it matters** — open its `/health` a minute before
+  a demo. Free instances stay awake ~15 minutes after a request.
+- **Raise the timeout** on the API service: `ML_TIMEOUT_SECONDS=10` is a
+  reasonable compromise for free-tier hosting. Do not raise it much further —
+  the number is the length of time a resident waits before their complaint is
+  accepted, and the fallback exists precisely so they do not have to.
 
 **Supabase pausing.** Free projects pause after a week of inactivity. Un-pause
 from the dashboard; data survives.
