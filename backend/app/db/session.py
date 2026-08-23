@@ -14,6 +14,21 @@ _connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     # FastAPI serves requests from a threadpool; SQLite needs this relaxed.
     _connect_args["check_same_thread"] = False
+elif settings.DATABASE_URL.startswith("postgresql+psycopg"):
+    # Disable psycopg's implicit prepared statements.
+    #
+    # Supabase (and PgBouncer generally) offers two pooling modes. In session
+    # mode a client keeps one backend for the life of the connection and
+    # prepared statements are fine. In transaction mode a backend is handed
+    # out per transaction, so the statement psycopg prepared on one may not
+    # exist on the next — surfacing as intermittent DuplicatePreparedStatement
+    # or "prepared statement does not exist" errors under load, and only in
+    # production.
+    #
+    # Turning them off costs a little planning time per query and makes the
+    # app correct against either mode, which is worth more than the planning
+    # time given the failure is intermittent and environment-specific.
+    _connect_args["prepare_threshold"] = None
 
 engine = create_engine(
     settings.DATABASE_URL,

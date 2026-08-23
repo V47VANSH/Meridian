@@ -17,8 +17,8 @@ Everything below is committed and ready:
 
 | File | What it does |
 |---|---|
-| `render.yaml` | Defines both Render services, their build and start commands, and every environment variable |
-| `vercel.json` | Frontend build plus the `/api/*` rewrite to Render |
+| `render.yaml` | Both Render services as a Blueprint. If the Blueprint flow fails, step 2 lists the same settings to enter by hand |
+| `frontend/vercel.json` | The `/api/*` rewrite to Render and the SPA fallback |
 | `backend/alembic/` | Migrations that build the Postgres schema |
 
 Push the branch you are deploying to GitHub first. Render and Vercel both read
@@ -33,12 +33,21 @@ from the repository, not from your machine.
    connection string and cannot be recovered later, only reset), pick the region
    closest to you, and create it. Provisioning takes a couple of minutes.
 3. Once ready: **Project Settings → Database → Connection string → URI**.
-4. Choose the **Session pooler** tab, not *Direct connection*.
+4. Choose a **pooler** tab, not *Direct connection*.
 
-   > **Why the pooler.** Render's free tier sleeps and wakes your service, and
+   > **Why a pooler.** Render's free tier sleeps and wakes your service, and
    > each wake opens a fresh pool. Direct connections are capped low on
-   > Supabase's free tier and you will exhaust them; the session pooler is built
-   > for exactly this pattern.
+   > Supabase's free tier and you will exhaust them; the poolers are built for
+   > exactly this pattern.
+   >
+   > **Session (`:5432`) or transaction (`:6543`) both work.** They differ in
+   > whether a client keeps one backend for the whole connection or gets one per
+   > transaction, which matters because psycopg prepares statements implicitly
+   > and a prepared statement does not survive being handed a different backend.
+   > The engine disables implicit prepared statements
+   > (`prepare_threshold=None` in `backend/app/db/session.py`) precisely so
+   > either mode is safe — without it, transaction mode fails intermittently
+   > under load and only in production, which is a miserable thing to debug.
 
 5. Copy the URI. It looks like:
 
@@ -68,105 +77,140 @@ from the repository, not from your machine.
 
 ---
 
-## Step 2 — Render (API and ML service)
+## Step 2 — Render (API and ML service), created by hand
 
-1. Go to <https://render.com> → **New → Blueprint**.
-2. Connect the GitHub repository and select the branch you are deploying.
-3. Render reads `render.yaml` and offers to create two services:
-   **`meridian-api`** and **`meridian-ml`**. Approve both.
-4. It will prompt for the variables marked `sync: false`. Fill in:
+The Blueprint flow reads `render.yaml` and creates both services in one go. If
+it does not appear or errors, create the two services manually — the settings
+below are exactly what `render.yaml` declares, so the outcome is identical.
 
-   | Service | Variable | Value |
-   |---|---|---|
-   | `meridian-api` | `DATABASE_URL` | The Supabase URI from step 1 |
-   | `meridian-api` | `RAZORPAY_KEY_ID` | Razorpay test key, or leave blank |
-   | `meridian-api` | `RAZORPAY_KEY_SECRET` | Razorpay test secret, or leave blank |
-   | `meridian-api` | `RAZORPAY_WEBHOOK_SECRET` | Leave blank |
-   | `meridian-api` | `GEMINI_API_KEY` | Gemini key, or leave blank |
-   | `meridian-api` | `REDIS_URL` | Leave blank for now (see step 5) |
-   | `meridian-api` | `ML_SERVICE_URL` | Leave blank — filled in at 4c |
-   | `meridian-api` | `CORS_ORIGINS` | Leave blank — filled in at step 4 |
-   | `meridian-ml` | `ML_SHARED_SECRET` | Leave blank — filled in at 4b |
+### 2a. The API service
 
-   Blanks are safe. Every one of them has a documented fallback: no Razorpay
-   means the API records an order and tells the resident online payment cannot
-   complete; no Gemini means rule-based intent matching; no Redis means the
-   in-process lock and rate limiter; no ML service means keyword classification.
+**New → Web Service** → connect the repository → then:
 
-5. Deploy. The first build takes 5–10 minutes per service.
+| Setting | Value |
+|---|---|
+| Name | `meridian-api` |
+| Language | `Python 3` |
+| Branch | the branch you are deploying |
+| **Root Directory** | `backend` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Instance Type | Free |
+| Health Check Path | `/health` |
 
-### 4a. Confirm the API came up
+> The start command runs migrations before the server. If `alembic upgrade head`
+> fails, the service never serves — deliberately. An API answering against a
+> half-built schema is worse than one that is plainly down, and the deploy log
+> shows exactly what failed.
 
-Open `https://meridian-api.onrender.com/health` (substitute your real URL).
-You want:
+**Environment variables** (Advanced → Add Environment Variable):
 
-```json
-{"status": "ok", "version": "1.0.0"}
-```
+| Key | Value |
+|---|---|
+| `PYTHON_VERSION` | `3.11.9` |
+| `DATABASE_URL` | your Supabase URI from step 1 |
+| `AUTO_CREATE_TABLES` | `false` |
+| `SEED_ON_STARTUP` | `true` |
+| `JWT_SECRET` | click **Generate** |
+| `ML_SHARED_SECRET` | click **Generate** |
+| `TRUST_PROXY_HEADERS` | `true` |
+| `REDIS_URL` | your Upstash `rediss://` URL, or leave unset |
 
-Check the deploy log for `Running upgrade -> 42dd0171617a, initial schema` — that
-is Alembic building the Postgres schema. `AUTO_CREATE_TABLES` is `false` here, so
-migrations are the only thing that touches it.
+`AUTO_CREATE_TABLES=false` is the one that must not be missed. Left at its
+default the app would build the schema from the models at startup, producing
+tables Alembic never stamped a revision for — and the next `alembic upgrade`
+would then fail on tables that already exist.
 
-### 4b. Join the two services with a shared secret
+`TRUST_PROXY_HEADERS=true` is correct **here specifically**, because Render
+terminates TLS and overwrites `X-Forwarded-For`. It must stay `false` anywhere
+the header is client-supplied, or a caller resets their own rate-limit counter
+by varying it.
 
-Render generates `ML_SHARED_SECRET` on the API but cannot copy it to a sibling.
+Leave `ML_SERVICE_URL`, `RAZORPAY_*`, `GEMINI_API_KEY` and `CORS_ORIGINS` unset
+for now. Every one has a working fallback.
 
-1. `meridian-api` → **Environment** → reveal `ML_SHARED_SECRET` → copy it.
-2. `meridian-ml` → **Environment** → paste it into `ML_SHARED_SECRET` → save.
+Deploy. First build takes 5–10 minutes.
 
-Without this the ML service rejects the API's calls with 401, and the API
-silently falls back to keyword classification — working, but not using the
-trained models.
+### 2b. The ML service
 
-### 4c. Point the API at the ML service
+**New → Web Service** → same repository → then:
+
+| Setting | Value |
+|---|---|
+| Name | `meridian-ml` |
+| Language | `Python 3` |
+| **Root Directory** | `ml-service` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Instance Type | Free |
+| Health Check Path | `/health` |
+
+Environment variables:
+
+| Key | Value |
+|---|---|
+| `PYTHON_VERSION` | `3.11.9` |
+| `ML_SHARED_SECRET` | **the same value you generated on the API** |
+
+Trained artifacts are committed, so it serves predictions as soon as it boots —
+there is no training step in the build.
+
+### 2c. Join the two services
 
 1. Copy the ML service's URL, e.g. `https://meridian-ml.onrender.com`.
-2. `meridian-api` → **Environment** → set `ML_SERVICE_URL` to it → save.
+2. On `meridian-api`, set `ML_SERVICE_URL` to it, **including the scheme**, and
+   save. Render redeploys.
 
-Include the scheme. The client builds its request URL by concatenation, so a
-bare hostname produces an unusable URL.
+A bare hostname will not work: the client builds its request URL by
+concatenation, so the scheme has to be there.
 
-Verify: `https://meridian-ml.onrender.com/health` should report both models
-loadable:
+If `ML_SHARED_SECRET` does not match on both services, the ML service returns
+401 and the API quietly falls back to keyword classification. Everything keeps
+working, which is exactly why this is easy to miss — check it explicitly at 2d.
 
-```json
-{"status": "ok", "models": {"complaint_classifier": true, "payment_risk": true}}
-```
+### 2d. Verify before moving on
 
-### 4d. Note the API URL
+| Check | Expected |
+|---|---|
+| `https://<api>/health` | `{"status":"ok","version":"1.0.0"}` |
+| API deploy log | `Running upgrade -> 42dd0171617a, initial schema` |
+| API deploy log | `Redis connected` if you set `REDIS_URL`, otherwise `REDIS_URL not set` |
+| `https://<ml>/health` | both models `true` |
+| `https://<api>/api/docs` | Swagger UI loads |
 
-Copy `meridian-api`'s URL. You need it in step 3, and I need it to replace the
-placeholder in `vercel.json`.
+To confirm the two services are really talking, sign in and raise a complaint
+with free text — if the category and urgency come back filled and the complaint
+is *not* flagged for manual triage, the trained model answered. If it is flagged,
+the shared secret or `ML_SERVICE_URL` is wrong.
+
+### 2e. Note the API URL
+
+Copy `meridian-api`'s URL. It goes into `frontend/vercel.json` next.
 
 ---
 
-## Step 3 — Update the rewrite, then deploy Vercel
+## Step 3 — Point the frontend at the API
 
-`vercel.json` currently points at a placeholder host. **Edit it before importing
-to Vercel**, or the deployed frontend will call a domain that does not exist:
+`frontend/vercel.json` ships with a placeholder host. Replace it in **both**
+rewrite rules:
 
 ```json
-"rewrites": [
-  { "source": "/api/:path*",
-    "destination": "https://YOUR-API.onrender.com/api/:path*" },
-  { "source": "/health",
-    "destination": "https://YOUR-API.onrender.com/health" },
-  ...
-]
+{ "source": "/api/:path*",
+  "destination": "https://YOUR-API.onrender.com/api/:path*" },
+{ "source": "/health",
+  "destination": "https://YOUR-API.onrender.com/health" }
 ```
 
-Commit and push that change, then:
+Commit and push. Vercel redeploys on push.
 
-1. <https://vercel.com> → **Add New → Project** → import the repository.
-2. **Root Directory: leave as the repository root.** Do not set it to
-   `frontend/` — `vercel.json` lives at the root and already handles the build
-   (`cd frontend && npm ci`, then `cd frontend && npm run build`, output
-   `frontend/dist`).
-3. Framework preset: **Other**. The config supplies everything.
-4. No environment variables are needed. `VITE_API_BASE_URL` defaults to `/api`,
-   which the rewrite forwards to Render.
-5. Deploy.
+> `vercel.json` lives in `frontend/`, not at the repository root, because the
+> Vercel project uses **Root Directory = `frontend`**. Vercel only reads the file
+> from the root directory it was given, so a copy at the repository root is
+> silently ignored — along with the API rewrite. See `frontend/VERCEL.md`.
+
+Vercel project settings: Root Directory `frontend`, framework preset **Vite**
+(auto-detected), default build and output. No environment variables are needed —
+`VITE_API_BASE_URL` defaults to `/api`, which the rewrite forwards to Render.
 
 ---
 
