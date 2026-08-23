@@ -51,4 +51,4 @@ fallback, so a genuinely missing asset 404s instead of quietly returning HTML.
 `npm run build` runs `tsc && vite build`, so a type error fails the deploy rather
 than shipping.
 
-Full walkthrough, including Render and Supabase: [`../docs/12-deployment-guide.md`](../docs/12-deployment-guide.md).
+Full walkthrough, including Render and Supabase: [`../DEPLOYMENT.md`](../DEPLOYMENT.md).
