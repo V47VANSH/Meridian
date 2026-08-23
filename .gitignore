@@ -23,3 +23,6 @@ __pycache__/
 .agents
 .claude/
 skills-lock.json
+
+# Built code archive — regenerate from a fresh clone, do not commit a 10MB build artifact
+submission/team-098-final-code.zip
