@@ -46,11 +46,33 @@ class Settings:
     # lowers it so a run that hashes hundreds of passwords stays fast.
     PASSWORD_HASH_ROUNDS: int = _env_int("PASSWORD_HASH_ROUNDS", 260_000)
 
-    # --- Booking concurrency -------------------------------------------
-    # Redis is used for the slot lock in production (see doc 02 section 7).
-    # When unset, the service falls back to an in-process lock plus the DB
-    # unique constraint, which is sufficient for a single-instance deploy.
+    # --- Redis ----------------------------------------------------------
+    # Backs the booking slot lock and the rate limiter. When unset, both fall
+    # back to in-process equivalents, which are correct for a single instance
+    # and insufficient for several (see app/core/redis_client.py).
     REDIS_URL: str = os.getenv("REDIS_URL", "")
+    REDIS_TIMEOUT_SECONDS: float = float(os.getenv("REDIS_TIMEOUT_SECONDS", "2.0"))
+    # How long a booking slot lock may be held before Redis expires it. Bounds
+    # how long a crashed worker can strand a slot; the critical section is one
+    # SELECT plus one INSERT, so this is generous.
+    SLOT_LOCK_TTL_MS: int = _env_int("SLOT_LOCK_TTL_MS", 5000)
+    # How long to wait for a contended slot lock before giving up and letting
+    # the database's unique index arbitrate. Short, because the critical
+    # section is short — a long wait would turn contention into a timeout.
+    SLOT_LOCK_WAIT_MS: int = _env_int("SLOT_LOCK_WAIT_MS", 3000)
+
+    # --- Rate limiting ---------------------------------------------------
+    RATE_LIMIT_ENABLED: bool = _env_bool("RATE_LIMIT_ENABLED", True)
+    RATE_LIMIT_WINDOW_SECONDS: int = _env_int("RATE_LIMIT_WINDOW_SECONDS", 60)
+    # Tighter on the endpoints worth abusing: /auth/* is where credential
+    # stuffing happens, and /sos fans out to every guard over push and SMS.
+    RATE_LIMIT_DEFAULT: int = _env_int("RATE_LIMIT_DEFAULT", 240)
+    RATE_LIMIT_AUTH: int = _env_int("RATE_LIMIT_AUTH", 20)
+    RATE_LIMIT_SOS: int = _env_int("RATE_LIMIT_SOS", 10)
+    # Only enable behind a proxy that overwrites X-Forwarded-For. A client can
+    # set that header themselves, so trusting it unconditionally would let
+    # anyone reset their own rate-limit counter at will.
+    TRUST_PROXY_HEADERS: bool = _env_bool("TRUST_PROXY_HEADERS", False)
 
     # --- ML service -----------------------------------------------------
     ML_SERVICE_URL: str = os.getenv("ML_SERVICE_URL", "")

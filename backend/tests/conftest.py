@@ -21,10 +21,23 @@ os.environ["RAZORPAY_KEY_SECRET"] = "test_gateway_secret"
 # Production uses 260k PBKDF2 rounds; the suite hashes hundreds of passwords,
 # so it drops the cost. This changes speed only, not the code under test.
 os.environ["PASSWORD_HASH_ROUNDS"] = "1000"
+# Rate limiting stays ON so the middleware is exercised on every request in the
+# suite, but the ceilings are lifted far above what any single test issues.
+# The dedicated tests in test_rate_limit.py lower them explicitly.
+os.environ["RATE_LIMIT_DEFAULT"] = "100000"
+os.environ["RATE_LIMIT_AUTH"] = "100000"
+os.environ["RATE_LIMIT_SOS"] = "100000"
+# The main suite always runs on the in-process lock and rate limiter, so its
+# results do not depend on whether a developer happens to have Redis running.
+# The URL is preserved under a different name first: test_redis_integration.py
+# picks it up and exercises the real client, and skips when there is none.
+os.environ["TEST_REDIS_URL"] = os.environ.get("REDIS_URL", "")
+os.environ["REDIS_URL"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from app.core import ratelimit, redis_client  # noqa: E402
 from app.core.security import hash_password, sign_payload  # noqa: E402
 from app.db.session import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
@@ -48,6 +61,20 @@ def fresh_database() -> Iterator[None]:
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limiter() -> Iterator[None]:
+    """Start every test with empty rate-limit counters.
+
+    The limiter's state is process-global, so without this a test's allowance
+    would depend on how many requests the tests before it happened to make.
+    """
+    ratelimit.reset_for_tests()
+    redis_client.reset_for_tests()
+    yield
+    ratelimit.reset_for_tests()
+    redis_client.reset_for_tests()
 
 
 @pytest.fixture

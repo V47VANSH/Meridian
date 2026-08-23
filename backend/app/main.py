@@ -8,10 +8,11 @@ from.
 import logging
 import uuid
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 
 from app.api.v1 import (
     ai,
@@ -24,6 +25,7 @@ from app.api.v1 import (
     tenants,
     visitors,
 )
+from app.core import ratelimit
 from app.core.config import settings
 from app.core.errors import (
     APIError,
@@ -127,6 +129,54 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
         return response
+
+    @app.middleware("http")
+    async def enforce_rate_limit(request: Request, call_next):
+        """Throttle by client IP, tighter on `/auth/*` and `/sos`.
+
+        Runs outside the router so it also covers requests that never reach a
+        route — a flood of 404s costs the same to serve as a flood of 200s.
+        The docs and health probe are exempt so a monitor cannot lock itself
+        out, and the rejection reuses the standard error envelope so a client
+        parses it the same way as any other failure.
+        """
+        path = request.url.path
+        exempt = path in {"/health", "/api/docs", "/api/redoc", "/api/openapi.json"}
+
+        if settings.RATE_LIMIT_ENABLED and not exempt:
+            decision = ratelimit.check(ratelimit.client_id_for(request), path)
+            if not decision.allowed:
+                request_id = getattr(request.state, "request_id", None) or uuid.uuid4().hex
+                logger.warning(
+                    "rate limit hit path=%s client=%s limit=%s",
+                    path,
+                    ratelimit.client_id_for(request),
+                    decision.limit,
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={
+                        "statusCode": status.HTTP_429_TOO_MANY_REQUESTS,
+                        "error": "RATE_LIMITED",
+                        "message": (
+                            f"Too many requests. Try again in {decision.retry_after}s."
+                        ),
+                        "requestId": request_id,
+                    },
+                    headers={
+                        "Retry-After": str(decision.retry_after),
+                        "X-RateLimit-Limit": str(decision.limit),
+                        "X-RateLimit-Remaining": "0",
+                        "X-Request-Id": request_id,
+                    },
+                )
+
+            response = await call_next(request)
+            response.headers["X-RateLimit-Limit"] = str(decision.limit)
+            response.headers["X-RateLimit-Remaining"] = str(decision.remaining)
+            return response
+
+        return await call_next(request)
 
     app.add_exception_handler(APIError, api_error_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
