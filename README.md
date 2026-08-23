@@ -269,6 +269,8 @@ The design documents it draws on live in [docs/](docs/):
 | [05 — DevOps](docs/05-devops-architecture.md) | CI, environments, secrets, hosting status |
 | [06 — Wireframes](docs/06-wireframes-and-workflow.md) · [07 — Components](docs/07-component-design.md) · [08 — Class Diagram](docs/08-class-diagram.md) | Design artifacts |
 | [10 — Milestone 3 Report](docs/10-milestone-3-report.md) | Sprint 4 record: API inventory, test cases TC-01…TC-11, user feedback |
+| [13 — Presentation](docs/13-presentation.md) · [PDF](docs/13-presentation.pdf) | Slide deck with speaker notes |
+| [14 — Demo Script](docs/14-demo-script.md) | Running order for the recorded demonstration |
 
 The backend also has its own [backend/README.md](backend/README.md) covering the
 API in more detail, and the ML service has

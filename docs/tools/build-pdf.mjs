@@ -3,6 +3,7 @@
  *
  *   node docs/tools/build-pdf.mjs docs/11-final-report.md
  *   node docs/tools/build-pdf.mjs docs/11-final-report.md out/report.pdf
+ *   STYLE=slides node docs/tools/build-pdf.mjs docs/13-presentation.md
  *
  * Markdown -> HTML with `marked`, then headless Chrome prints it to PDF. Chrome
  * is used rather than a PDF library because it is already on every machine that
@@ -54,7 +55,11 @@ const output = resolve(outputArg ?? source.replace(/\.md$/i, ".pdf"));
 mkdirSync(dirname(output), { recursive: true });
 
 const markdown = readFileSync(source, "utf8");
-const css = readFileSync(resolve(sourceDir, "tools/print.css"), "utf8");
+
+// `STYLE=slides` renders one `---` separated section per landscape page.
+// Anything else uses the document stylesheet.
+const styleName = process.env.STYLE === "slides" ? "slides.css" : "print.css";
+const css = readFileSync(resolve(sourceDir, "tools", styleName), "utf8");
 
 marked.setOptions({ gfm: true, breaks: false });
 const body = marked.parse(markdown);
@@ -89,6 +94,7 @@ execFileSync(
     "--no-sandbox",
     // Chrome will not load local images into a page it considers remote.
     "--allow-file-access-from-files",
+    // No URL/date furniture on either output; the documents carry their own.
     "--no-pdf-header-footer",
     `--print-to-pdf=${output}`,
     pathToFileURL(htmlPath).href,

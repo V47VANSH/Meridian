@@ -3,6 +3,7 @@
 **Apartment Complex Management System**
 
 Team 98 · IITM BS Degree, Software Engineering · May 2026 term
+
 Repository: <https://github.com/V47VANSH/MAY2026-Team-098>
 
 ---
@@ -51,7 +52,7 @@ rather than by convention.
 | Database | 18 tables, 13 indexes, Alembic migrations |
 | Frontend | React + TypeScript SPA, every screen rendering from the real API |
 | ML | Separate FastAPI service: complaint classifier and payment-risk scorer, both trained |
-| Tests | **131 backend + 21 ML service**, all passing |
+| Tests | **149 backend + 21 ML service**, all passing (7 further backend tests run only against a live Redis) |
 | CI | Three GitHub Actions workflows: lint, typecheck, test, and contract-drift gates |
 
 All six Milestone 1 epics are implemented end to end. The system runs from a
@@ -65,9 +66,13 @@ the default and seeds a demo society on first start.
 | Contributor | Commits | Primary area |
 |---|---|---|
 | Tushar (`23f2003751`) | 40 | Backend APIs, ML service, API integration, testing, CI |
-| `21f3000278` | 7 | Frontend — official dashboard, Meridian AI assistant |
+| *«name»* (`21f3000278`) | 7 | Frontend — official dashboard, Meridian AI assistant |
 | Vansh Bansal | 5 | Repository setup, frontend |
-| `21f1004124` | 4 | Frontend pages |
+| *«name»* (`21f1004124`) | 4 | Frontend pages |
+
+> **Before submitting:** replace the two *«name»* placeholders above. Git records
+> only the roll numbers for those accounts, and named ownership is what the
+> teamwork criterion looks for.
 
 **56 commits across 9 branches.** Ownership was organised horizontally — one
 person per layer — which the team chose deliberately so that each member worked
@@ -239,10 +244,22 @@ because confirming a record exists would leak that another society holds that id
 and login returns an identical error for an unknown email and a wrong password, so
 the response cannot be used to enumerate registered addresses.
 
-**Not implemented:** rate limiting. The error catalogue reserves a `RATE_LIMITED`
-code for it, but nothing throttles the login endpoint today. This is the most
-significant remaining security gap and is named as such in
-[02 §4](02-backend-architecture.md#4-security).
+**Rate limiting.** Fixed-window, keyed on client IP, with tighter ceilings on
+`/auth/*` (20/min) and `/sos` (10/min) than on general traffic (240/min). The
+reason differs per endpoint: `/auth` is where credential stuffing and email
+enumeration are attempted, and `/sos` fans out to every guard in the society over
+push and SMS, so a loop on it is both a cost and an alert-fatigue problem.
+
+A fixed window admits a burst spanning a boundary — up to twice the limit across
+two adjacent windows. That is a real weakness, accepted because it costs one
+`INCR` against Redis where a sliding-window log costs a sorted-set write plus a
+trim, and the threat here is a sustained loop rather than a precisely timed
+burst.
+
+`X-Forwarded-For` is believed only behind a proxy explicitly marked trusted.
+A client can set that header themselves, so trusting it unconditionally would let
+anyone reset their own counter by varying it — the control would look present and
+do nothing.
 
 ## B5. Epic flows
 
@@ -389,7 +406,7 @@ suite runnable by a grader with a fresh clone and nothing installed.
 
 ```
 $ cd backend && pytest -q
-131 passed
+149 passed, 7 skipped
 
 $ cd ml-service && pytest -q
 21 passed
@@ -403,8 +420,17 @@ $ cd frontend && npm run typecheck
 
 Backend coverage by module: `test_ai` 7, `test_announcements` 10, `test_auth` 14,
 `test_bookings` 13, `test_complaints` 17, `test_maintenance` 19,
-`test_migrations` 5, `test_missing_apis` 9, `test_tenant_isolation` 9,
-`test_user_management` 9, `test_visitors` 19.
+`test_migrations` 5, `test_missing_apis` 9, `test_rate_limit` 9,
+`test_redis_paths` 9, `test_tenant_isolation` 9, `test_user_management` 9,
+`test_visitors` 19.
+
+The 7 skipped are `test_redis_integration`, which exercises the same guarantees
+against a **live** Redis rather than a fake. They skip when no Redis is
+configured — which keeps the suite runnable with nothing installed — and run in
+CI against a `redis:7` service container. The distinction matters: a fake proves
+the code issues the commands it intends to, but only a real server can prove
+that `SET NX PX` is genuinely atomic and that the release script really is
+compare-and-delete.
 
 ## C3. Tests that check properties, not endpoints
 
@@ -510,7 +536,7 @@ team's quality process, which is why the original record is preserved unedited.
 
 | Tool | Purpose |
 |---|---|
-| pytest 8.3.4 | 131 backend + 21 ML tests |
+| pytest 8.3.4 | 149 backend + 21 ML tests |
 | FastAPI `TestClient` | In-process integration testing |
 | Python `threading` | Genuine concurrency test for the booking race |
 | **Ruff** | Backend and ML lint gate |
@@ -759,7 +785,7 @@ them behind **Show demo accounts** and fills the form when one is clicked.
 ## F6. Running the tests
 
 ```bash
-cd backend      && pytest        # 131 tests
+cd backend      && pytest        # 149 tests
 cd ml-service   && pytest        # 21 tests
 cd frontend     && npm run typecheck && npm run build
 ```
@@ -773,7 +799,7 @@ fresh virtual environments:
 | Step | Result |
 |---|---|
 | `git clone` → repository contents | `backend/`, `frontend/`, `ml-service/`, `docs/`, `.github/` present; no `.venv`, `node_modules` or database file |
-| Backend: venv → `pip install -r requirements.txt` → `pytest` | **131 passed** |
+| Backend: venv → `pip install -r requirements.txt` → `pytest` | **149 passed**, 7 skipped |
 | Backend: `uvicorn app.main:app` | `/health` → `{"status":"ok"}`; `/api/docs` → 200; demo login → 200 |
 | ML service: venv → install → `pytest` | **21 passed** |
 | Frontend: `npm install` → `npm run typecheck` | Clean |
@@ -806,60 +832,118 @@ working fallback rather than a missing capability.**
 
 | Designed | Delivered | Why |
 |---|---|---|
-| Redis distributed lock for bookings | In-process lock + partial unique DB index | The database constraint is the real guarantee; the lock is an optimisation. Equivalent for a single-instance deploy, and Redis would have added an operational dependency for no additional safety |
+| Redis distributed lock for bookings | **Delivered**, with an in-process fallback | Redis is used when `REDIS_URL` is set and falls back otherwise. The fallback is not a lesser version of the same thing: an in-process lock serialises within one worker and does nothing across several, so what Redis buys is correctness across processes. Either way the partial unique index remains the actual guarantee |
+| Rate limiting | **Delivered** | Fixed-window, per client IP, tighter on `/auth/*` and `/sos`. See B4 for the fixed-versus-sliding tradeoff and why `X-Forwarded-For` is only trusted behind a declared proxy |
 | WebSocket gateway for live updates | Polling | Every REST endpoint behind the intended events exists and is tested. The transport is the only missing piece, and polling is correct if less elegant |
 | Queued push/email/SMS dispatch | Channel routing implemented, logged at the dispatch boundary | Real delivery needs provider credentials. The in-app notification row is always written, so no notification is lost — only its external copy |
-| PostgreSQL + Supabase Storage | SQLite default, Postgres in CI | The submission must run with no database server. Complaint photo upload is not implemented because there is no object store to put a file in |
+| Supabase Storage for attachments | Not built | Complaint photo upload is not implemented because there is no object store to put a file in. `attachment_urls` exists on the model but no endpoint writes to it |
 | Entity methods on models (doc 08) | Behaviour in the router/service layer | The class diagram documents the conceptual model; the implementation keeps domain logic where the transaction boundary is. A deliberate anaemic-model choice, not an oversight |
 | `Notification.payload` (JSON) | `title` + `body` columns | Every notification the system sends is a title and a body. A JSON column would have been unused generality |
-| Rate limiting | Not implemented | Named as the most significant remaining security gap |
-| PWA, Sentry, hosting | Not built | Scope traded for depth in the delivered features. Argued in Part H and I |
+| PWA and Sentry | Not built | Scope traded for depth in the delivered features. Listed in Part I |
+
+Two of these moved during the final sprint. Rate limiting and the Redis-backed
+lock were both documented as designed and were not implemented; both now are.
+The Redis work is worth a note on how it was verified, because the tests found
+two defects the implementation would otherwise have shipped with:
+
+- Releasing the lock used Redis's `EVAL` unconditionally. Some managed Redis
+  offerings disable scripting; the release then failed and the lock sat until its
+  TTL expired, serialising every booking for that slot behind it. It now falls
+  back to a read-then-delete, accepting a rare mistaken release because the
+  database index is the real guarantee and a guaranteed stall is far worse.
+- More seriously, a *contended* lock and an *unreachable* Redis were handled
+  identically — both fell through to the in-process lock — so a request that lost
+  the race barged into the critical section anyway. Two threads were measurably
+  inside it at once. Contention now waits; unavailability falls back.
+
+Neither would have been caught by testing against a fake alone, which is the
+argument for the live-Redis suite described in C2.
 
 ---
 
 # Part H — Hosting
 
-**The project is delivered as a run-locally system.** Three services start from
-the repository against a zero-configuration SQLite database that seeds itself.
+The system is deployed to the topology
+[05 — DevOps Architecture](05-devops-architecture.md) specifies:
 
-The intended production topology — Vercel for the frontend, Render for the backend
-and ML service, Supabase for Postgres and object storage, Upstash for Redis —
-is documented in [05 — DevOps Architecture](05-devops-architecture.md) and was not
-provisioned. The reason is a judgement about where the remaining time was worth
-spending: every hosted dependency in that topology is one the system is explicitly
-built to run without, so provisioning them would have bought a URL rather than a
-capability. Cost was never the constraint; the whole topology fits inside free
-tiers.
+| Component | Host | Notes |
+|---|---|---|
+| Frontend | **Vercel** | Root directory `frontend`, Vite preset |
+| API | **Render** | Root directory `backend`, migrations run before the server starts |
+| ML service | **Render** | Root directory `ml-service`; trained artifacts are committed, so there is no training step in the build |
+| Database | **Supabase Postgres** | Connected through a pooler, not the direct endpoint |
+| Redis | **Upstash** | Optional; backs the booking lock and rate limiter |
 
-What *is* delivered on the infrastructure side is the part that guards quality:
-three CI workflows gating every pull request on lint, tests, typecheck, migration
-integrity and contract drift.
+`render.yaml` and `frontend/vercel.json` are committed, and
+[`DEPLOYMENT.md`](../DEPLOYMENT.md) is a standalone walkthrough. Everything below
+is a decision the deployment forced, and each is the kind of thing that fails
+quietly rather than loudly.
+
+**The frontend proxies rather than calling the API directly.** Vercel rewrites
+`/api/*` to Render, so the browser stays same-origin in production exactly as it
+does behind the Vite dev proxy locally. CORS is therefore never exercised in
+either environment, and no API URL is compiled into the JavaScript bundle — the
+same build artifact works against any backend.
+
+**Schema ownership had to be made explicit.** Startup called `create_all`
+unconditionally, which is right for SQLite and wrong for a database Alembic
+manages: it would create tables with no revision stamp, and the next `upgrade`
+would fail on tables that already exist. `AUTO_CREATE_TABLES` now defaults to
+true for SQLite and false otherwise, so local runs stay zero-setup and migrations
+own everything else.
+
+**Prepared statements are disabled against Postgres.** Supabase's transaction
+pooler hands out a backend per transaction, so a statement psycopg prepared on
+one may not exist on the next. That surfaces as intermittent errors, under load,
+in production only, and never locally against SQLite — so it is turned off, which
+costs a little planning time per query and makes either pooler mode correct.
+
+**Free-tier instances sleep.** Render free services spin down after roughly
+fifteen minutes idle, and the next request takes 30–50 seconds while the
+container wakes. Worth stating plainly so it is not mistaken for a performance
+defect during evaluation.
+
+Alongside the hosting, three CI workflows gate every pull request on lint, tests,
+typecheck, migration integrity and contract drift.
 
 ---
 
 # Part I — Limitations and Future Work
 
-Stated plainly, in the order we would tackle them.
+Stated plainly, in the order we would tackle them. Nothing here is hidden
+elsewhere in the report — an undisclosed gap is worth less than a disclosed one,
+because a reader who finds one has to wonder what else there is.
 
-1. **Rate limiting.** Nothing throttles the login endpoint. The error code is
-   reserved; the middleware is not written. This is the top of the list.
-2. **Frontend test suite.** There is none. `tsc --noEmit` is a real gate but it is
-   a type gate, not a behaviour gate. Vitest + React Testing Library, then
-   Playwright for the golden paths.
-3. **Real notification delivery.** Wiring a push, email and SMS provider behind the
-   existing `notify()` boundary, with a queue so a slow provider cannot affect a
-   request.
-4. **WebSocket gateway.** Replacing polling for SOS alerts and live booking-slot
-   availability.
-5. **Deployment.** Postgres on Supabase, the two services on Render, the frontend
-   on Vercel, with migrations applied from CI.
-6. **ML on real data.** Both models are trained on bootstrapped and simulated data.
-   Retraining on accumulated complaint text and invoice history is what would make
-   the metrics meaningful.
-7. **PWA.** Installability, an offline app shell, and Web Push.
-8. **Smaller gaps.** Complaint photo upload (needs object storage), an audit-log
-   UI (the endpoint exists), a camera QR scanner for guards (token entry works
-   today), and hold-to-trigger SOS to prevent misfires.
+1. **Frontend test suite.** There is none. `tsc --noEmit` is a real gate, but it
+   is a type gate, not a behaviour gate — it cannot tell you a button stopped
+   calling the right endpoint. Vitest and React Testing Library first, then
+   Playwright for the six golden paths. This is the largest genuine hole in the
+   quality story and the reason it sits at the top.
+2. **Real notification delivery.** Channel routing is implemented and logged at
+   the dispatch boundary, but nothing is sent. Wiring a push, email and SMS
+   provider behind the existing `notify()` call, with a queue so a slow provider
+   cannot affect a request.
+3. **WebSocket gateway.** Replacing polling for SOS alerts and live booking-slot
+   availability. Every REST endpoint behind the intended events already exists
+   and is tested; only the transport is missing.
+4. **ML on real data.** Both models are trained on bootstrapped and simulated
+   data, and the reported metrics should be read as described in B8 rather than
+   at face value. Retraining on accumulated complaint text and invoice history is
+   what would turn them into evidence.
+5. **Complaint photo upload.** `attachment_urls` exists on the model, but there
+   is no object store behind it and no endpoint that writes to it. Needs Supabase
+   Storage.
+6. **PWA.** Installability, an offline app shell, and Web Push.
+7. **Deployment hardening.** Migrations currently run in the start command;
+   Render's dedicated pre-deploy step is the better home for them on a paid plan.
+   Sentry for error tracking, and an uptime monitor.
+8. **Smaller gaps.** An audit-log UI (the endpoint exists and nothing renders
+   it), a camera QR scanner for guards (typing the token works today), and
+   hold-to-trigger SOS to prevent accidental presses.
+
+Two items that appeared on this list in earlier drafts — **rate limiting** and
+the **Redis-backed booking lock** — were both closed in the final sprint and are
+described in B4 and Part G.
 
 ---
 
@@ -879,3 +963,5 @@ Stated plainly, in the order we would tackle them.
 | [09 — Database Design](09-database-design.md) | 18-table ERD, keys, constraints, indexes |
 | [10 — Milestone 3 Report](10-milestone-3-report.md) | Sprint 4 record: API inventory, TC-01…TC-11, feedback, Sprint 5 plan |
 | **11 — Final Report** | This document |
+| [13 — Presentation](13-presentation.md) | Slide deck with speaker notes |
+| [14 — Demo Script](14-demo-script.md) | Running order for the recorded demonstration |
