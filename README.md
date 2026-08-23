@@ -116,7 +116,7 @@ see the trained models make the call instead.
 ```bat
 cd ml-service
 python -m venv .venv
-.venv\Scriptsctivate
+.venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --port 8100
 ```
