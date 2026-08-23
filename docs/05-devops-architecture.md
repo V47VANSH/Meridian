@@ -2,34 +2,47 @@
 
 Owner: Person E · Parent doc: [00 — Architecture Overview](00-architecture-overview.md)
 
-## 1. Hosting Targets (all free-tier)
+## 1. Hosting Targets
 
-| Component | Host | Notes |
+> **Delivery status.** The project is submitted as a **run-locally** system: three
+> services started from the repository, with a zero-configuration SQLite database
+> that seeds itself on first run. None of the hosts below were provisioned. The
+> table is retained as the intended production topology, and the **Status** column
+> says what is actually in the repository.
+>
+> This was a deliberate trade. Every hosted dependency below is one the system is
+> built to run *without* — Postgres falls back to SQLite, Redis to an in-process
+> lock plus a database constraint, the ML service to a keyword classifier, the
+> gateway to an official recording payment manually. Provisioning them would have
+> bought a URL, not a capability.
+
+| Component | Host | Status |
 |---|---|---|
-| Frontend (React PWA) | Vercel | Auto-deploy from `main`, preview deploy per PR |
-| Backend (FastAPI) | Render (Web Service, Docker) | Auto-deploy from `main` |
-| ML service (FastAPI) | Render (Web Service, Docker) | Separate service, separate repo folder, own deploy |
-| Database + Storage | Supabase | Postgres + object storage, bundled |
-| Cache/Queue | Upstash Redis | Free tier, serverless-friendly (REST + TCP) |
-| Payments | Razorpay | Test/sandbox mode, no real transactions |
-| Email | SendGrid | Free tier (100/day) |
-| SMS | Twilio | Trial credit |
-| Error tracking | Sentry | Free tier |
-| Uptime | Render health checks / UptimeRobot | Free |
+| Frontend (React SPA) | Vercel | Planned — run locally via Vite dev server / `npm run build` |
+| Backend (FastAPI) | Render | Planned — run locally via uvicorn |
+| ML service (FastAPI) | Render | Planned — run locally via uvicorn |
+| Database | Supabase Postgres | Planned — **SQLite is the delivered default**; the Postgres path is exercised in CI |
+| Object storage | Supabase Storage | Not built — this is why complaint photo upload is not implemented |
+| Cache/Queue | Upstash Redis | Not built — in-process booking lock + partial unique index instead |
+| Payments | Razorpay | **Implemented server-side** (HMAC verification); test-mode credentials required to complete a checkout |
+| Email | SendGrid | Not built |
+| SMS | Twilio | Not built |
+| Error tracking | Sentry | Not built |
+| Uptime | UptimeRobot | Not built — `/health` endpoints exist on backend and ML service |
 
-No Terraform/IaC layer — at this scope, `render.yaml` + `vercel.json` + GitHub Actions workflow files **are** the infra-as-code; a full IaC tool would be overhead the team doesn't need for two Render services and one Vercel project.
+There is no Terraform/IaC layer, and at this scope there does not need to be: the
+GitHub Actions workflow files are the only infrastructure definition committed.
+`render.yaml` and `vercel.json` would be added alongside a real deployment.
 
 ## 2. Repository Structure (Monorepo)
 
 ```
 /
-  frontend/            # React PWA
+  frontend/            # React SPA
   backend/             # FastAPI API
-  ml-service/          # FastAPI ML service
-  docs/                # this architecture, ADRs, etc.
-  .github/workflows/   # CI/CD pipelines
-  render.yaml          # Render service definitions (backend + ml-service)
-  vercel.json          # Vercel project config (frontend)
+  ml-service/          # FastAPI ML service (both models)
+  docs/                # architecture, design and milestone reports
+  .github/workflows/   # CI pipelines (ci-backend, ci-frontend, ci-ml)
 ```
 
 One repo, not three, so a single PR can span frontend+backend when a feature genuinely requires both, and so CI can run contract-consistency checks across layers in one pipeline.
@@ -42,56 +55,109 @@ One repo, not three, so a single PR can span frontend+backend when a feature gen
 
 ## 4. CI Pipeline (GitHub Actions)
 
-Three workflows, triggered on PR and on push to `main`:
+Three workflows, triggered on PR and on push to `main`. There is no deploy stage
+in any of them, because nothing is hosted (§1).
 
-**`ci-frontend.yml`** (path-filtered to `frontend/**`)
+**`ci-frontend.yml`** (path-filtered to `frontend/**` and `backend/openapi.yaml`)
 ```
-install → typecheck → lint → unit test (Vitest) → build
-→ (on main) deploy handled by Vercel's own GitHub integration
+npm ci → typecheck (tsc --noEmit)
+→ regenerate the API types, fail if they differ from the committed ones
+→ build
 ```
+
+The generated-types check is the important one. The client is codegen'd from the
+backend's published contract, so if the spec moved and the types were not
+regenerated, the app would typecheck against a contract the API no longer serves
+— the exact drift a generated client exists to prevent.
+
+> There is no lint step and no unit-test step: the frontend has no ESLint config
+> and no test suite. `tsc --noEmit` is the type gate that runs in their place.
+> Adding Vitest and React Testing Library is the largest single item of remaining
+> work on the frontend.
 
 **`ci-backend.yml`** (path-filtered to `backend/**`)
 ```
-install (pip) → lint (ruff) → pytest (SQLite, no services needed)
-→ spin up Postgres+Redis service containers → alembic upgrade head
-→ pytest against Postgres (catches dialect-specific issues SQLite hides)
-→ regenerate openapi.yaml, diff against committed spec
-→ (on main) deploy to Render via Render's GitHub integration / deploy hook
+job "test":     pip install → ruff check → pytest (SQLite, no services needed)
+                → re-export openapi.yaml, fail if the committed spec moved
+job "postgres": postgres:16 service container → alembic upgrade head
+                → alembic check (empty autogenerate diff)
 ```
 
-The suite runs twice deliberately. The SQLite pass needs no service containers and gives fast feedback on every push; the Postgres pass catches the things SQLite is lenient about — partial index behaviour, stricter type coercion, and constraint enforcement differences.
+The second job is what SQLite cannot tell us: whether the migrations actually
+apply on the engine production would run, and whether a model changed without a
+matching revision. It runs the migrations, not the test suite — the suite pins
+its own throwaway SQLite database in `conftest.py`, so running it against the
+Postgres container would not exercise Postgres.
 
 **`ci-ml.yml`** (path-filtered to `ml-service/**`)
 ```
-install → lint → pytest (unit + model-eval-floor check) → build
-→ (on main) deploy to Render via deploy hook
+job "test":    pip install → ruff check → pytest (contract, unit, metric floors)
+job "retrain": retrain both models; each trainer exits non-zero if its
+               held-out metric falls below the floor it declares
 ```
 
-Path-filtering means a frontend-only PR doesn't wait on ML tests and vice versa — keeps feedback loops fast despite one monorepo.
+Path-filtering means a frontend-only PR doesn't wait on ML tests and vice versa —
+keeps feedback loops fast despite one monorepo.
 
 ## 5. Environments
 
-Given the free-tier target, the project runs two environments rather than three:
+**As delivered, there is one environment: the developer's machine.** `main` is
+always runnable — a clone plus the README's steps gives a working system with a
+seeded demo society, which is what the submission is graded against.
 
-- **Preview**: Vercel/Render preview deploys per open PR (frontend gets this natively; backend preview environments are optional/skipped if Render's free tier makes them impractical — local docker-compose is the fallback for backend PR review)
-- **Production**: `main` branch, always deployable, seeded with demo data for grading/demo purposes
-
-A staging environment is deliberately not included — for a project of this scope and free-tier budget, it adds an environment to maintain without a corresponding real risk it protects against (no real users yet, no real money moving).
+The intended production topology was two environments (per-PR preview and a
+`main` production deploy), with staging deliberately excluded: for a project with
+no real users and no real money moving, staging adds an environment to maintain
+without a corresponding risk it protects against. That reasoning still holds; it
+simply has not been exercised, because nothing is deployed.
 
 ## 6. Secrets Management
 
-- Local: `.env` files, gitignored, with a committed `.env.example` documenting every required variable
-- CI: GitHub Actions Secrets (repo settings), injected as env vars per workflow
-- Production: Render/Vercel's own environment variable dashboards — never written to a committed file
+- **Local**: `.env` files, gitignored, with a committed `.env.example` in
+  `backend/` and `frontend/` documenting every variable and its default.
+- **CI**: the workflows inject only non-secret placeholder values
+  (`JWT_SECRET: ci-secret`, `RAZORPAY_KEY_SECRET: ci_gateway_secret`) because the
+  suite needs no real credentials. A deploy stage would move these to GitHub
+  Actions Secrets.
+- **Production**: the host's environment variable dashboard — never a committed
+  file. Not exercised.
 
-Secrets required: `DATABASE_URL`, `JWT_SECRET`, `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`, `SENDGRID_API_KEY`, `TWILIO_*`, `ML_SHARED_SECRET`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`, `SENTRY_DSN`, `SUPABASE_*`.
+Variables the delivered system reads: `DATABASE_URL`, `JWT_SECRET`,
+`ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`,
+`PASSWORD_HASH_ROUNDS`, `ML_SERVICE_URL`, `ML_SHARED_SECRET`,
+`ML_TIMEOUT_SECONDS`, `ML_CONFIDENCE_THRESHOLD`,
+`PAYMENT_RISK_REMINDER_THRESHOLD`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`,
+`RAZORPAY_WEBHOOK_SECRET`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `CORS_ORIGINS`,
+`SEED_ON_STARTUP`. Every one has a working default, so the project runs with no
+`.env` at all.
+
+`SENDGRID_API_KEY`, `TWILIO_*`, `VAPID_*`, `SENTRY_DSN` and `SUPABASE_*` belong
+to the components in §1 that were not built, and are not read by any code.
 
 ## 7. Monitoring & Observability
 
-- **Sentry**: wired into both frontend and backend; every unhandled exception reports with the `requestId` correlation ID described in [02 — Backend Architecture §10](02-backend-architecture.md#11-error-handling)
-- **Uptime**: Render's built-in health check endpoint (`GET /health` on backend and ML service) + optionally UptimeRobot pinging it for a public status signal
-- **Logs**: Render's built-in log viewer is sufficient at this scale — no need for a separate log aggregation service
+- **Health checks**: `GET /health` on the backend and on the ML service. The ML
+  probe additionally reports whether each trained artifact is loadable — a
+  service that is up but has no model would fail every request, so the two states
+  are distinguished.
+- **Request correlation**: every response carries `X-Request-Id`, and the same id
+  appears in the error body and the server log line — see
+  [02 — Backend Architecture §11](02-backend-architecture.md#11-error-handling).
+  The frontend surfaces it on error screens so a user-reported failure can be
+  traced to its exact log entry.
+- **Error tracking**: Sentry is **not** wired in. The correlation id above is the
+  delivered substitute; an SDK would be the first addition alongside a deployment.
+- **Uptime**: no external monitor, since there is no public endpoint to poll.
 
-## 8. Cost Summary
+## 8. Cost
 
-Every component above is free-tier: Vercel (hobby), Render (free web services, note: free tier services spin down on inactivity — acceptable for a demo/academic project, worth calling out explicitly so it isn't mistaken for a bug during grading), Supabase (free project), Upstash (free tier), Razorpay (test mode, no cost by definition), SendGrid (free 100/day), Twilio (trial credit), Sentry (free tier). Total infrastructure cost: **$0**, matching the "free and easy to integrate" requirement.
+Total infrastructure cost: **$0** — nothing is provisioned. The intended topology
+was chosen to stay free-tier throughout (Vercel hobby, Render free web services,
+Supabase free project, Upstash free tier, Razorpay test mode, SendGrid 100/day,
+Twilio trial credit, Sentry free tier), so cost was never the constraint that
+decided against deploying; time on the final milestone was.
+
+One note worth carrying forward: Render's free web services spin down on
+inactivity, so a first request after a quiet period takes several seconds. That
+is worth stating explicitly in any future deployment so it is not mistaken for a
+performance defect.
