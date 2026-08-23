@@ -36,6 +36,14 @@ class Settings:
     # SQLite by default so the submitted ZIP runs with zero external setup.
     # Set DATABASE_URL to a postgresql+psycopg:// URL for a real deployment.
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./acms.db")
+    # Who owns the schema. SQLite builds it from model metadata so the project
+    # clones and runs with no database server; anything else is migrated with
+    # `alembic upgrade head`. Letting create_all run against a migrated database
+    # would create tables Alembic has no version stamp for, and the next
+    # `upgrade` would fail on tables that already exist.
+    AUTO_CREATE_TABLES: bool = _env_bool(
+        "AUTO_CREATE_TABLES", os.getenv("DATABASE_URL", "sqlite:///./acms.db").startswith("sqlite")
+    )
 
     # --- Auth -----------------------------------------------------------
     JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-only-secret-change-me")

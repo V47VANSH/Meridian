@@ -1,11 +1,14 @@
 """SQLAlchemy engine, session factory and declarative base."""
 
+import logging
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
@@ -46,11 +49,21 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Create any missing tables.
+    """Create any missing tables, when this deployment owns the schema that way.
 
-    Production uses versioned migrations; this keeps local runs and the test
-    suite a single call away from a working schema.
+    SQLite runs (local development and the test suite) build the schema from
+    model metadata, so the project is a single call away from working. Postgres
+    is migrated with `alembic upgrade head` instead — see
+    docs/03-database-architecture.md section 6. Running create_all against a
+    migrated database would produce tables Alembic never stamped a revision for,
+    and the next upgrade would fail on tables that already exist.
     """
     from app import models  # noqa: F401  (registers the mappers)
+
+    if not settings.AUTO_CREATE_TABLES:
+        logger.info(
+            "AUTO_CREATE_TABLES is off; the schema is owned by Alembic migrations"
+        )
+        return
 
     Base.metadata.create_all(bind=engine)
