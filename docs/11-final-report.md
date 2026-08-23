@@ -764,7 +764,27 @@ cd ml-service   && pytest        # 21 tests
 cd frontend     && npm run typecheck && npm run build
 ```
 
-## F7. Two configuration caveats
+## F7. Verification of these instructions
+
+These steps were not written from memory. They were verified on 23 Aug 2026 by
+cloning `main` into an empty directory and following this section top to bottom on
+fresh virtual environments:
+
+| Step | Result |
+|---|---|
+| `git clone` → repository contents | `backend/`, `frontend/`, `ml-service/`, `docs/`, `.github/` present; no `.venv`, `node_modules` or database file |
+| Backend: venv → `pip install -r requirements.txt` → `pytest` | **131 passed** |
+| Backend: `uvicorn app.main:app` | `/health` → `{"status":"ok"}`; `/api/docs` → 200; demo login → 200 |
+| ML service: venv → install → `pytest` | **21 passed** |
+| Frontend: `npm install` → `npm run typecheck` | Clean |
+| Frontend: `npm run build` | Built in 23.6 s |
+| Frontend: `npm run dev` → sign-in through the API proxy | 200 |
+
+One thing to expect: the very first request through the Vite proxy immediately
+after `npm run dev` can time out while the dev server finishes starting. A refresh
+resolves it — it is a cold start, not a failure.
+
+## F8. Two configuration caveats
 
 **Online card payment needs real Razorpay credentials.** The backend verifies the
 gateway's HMAC before settling an invoice — correctly, since otherwise any client
