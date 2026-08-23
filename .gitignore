@@ -19,6 +19,7 @@ __pycache__/
 # Editor / OS
 .DS_Store
 
-# Agent tooling
+# Agent tooling — local assistant config and installed skills, not deliverables
 .agents
+.claude/
 skills-lock.json

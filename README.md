@@ -264,6 +264,7 @@ The design documents it draws on live in [docs/](docs/):
 | [03 — Database](docs/03-database-architecture.md) · [09 — Database Design](docs/09-database-design.md) | Schema, isolation, migrations, ERD |
 | [04 — ML](docs/04-ml-architecture.md) | Both models, training, evaluation, fallbacks |
 | [05 — DevOps](docs/05-devops-architecture.md) | CI, environments, secrets, hosting status |
+| [12 — Deployment Guide](docs/12-deployment-guide.md) | Step-by-step Supabase, Render and Vercel setup |
 | [06 — Wireframes](docs/06-wireframes-and-workflow.md) · [07 — Components](docs/07-component-design.md) · [08 — Class Diagram](docs/08-class-diagram.md) | Design artifacts |
 | [10 — Milestone 3 Report](docs/10-milestone-3-report.md) | Sprint 4 record: API inventory, test cases TC-01…TC-11, user feedback |
 
