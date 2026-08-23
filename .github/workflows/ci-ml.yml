@@ -1,0 +1,85 @@
+# ML service CI (docs/05-devops-architecture.md section 4).
+#
+# The evaluation tests are the point of this workflow: each trainer declares a
+# metric floor in its metadata.json, and the suite fails if a committed artifact
+# has dropped below it. That is what stops a training regression being merged
+# without anyone noticing.
+
+name: ci-ml
+
+on:
+  pull_request:
+    paths:
+      - "ml-service/**"
+      - ".github/workflows/ci-ml.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ml-service/**"
+      - ".github/workflows/ci-ml.yml"
+
+concurrency:
+  group: ci-ml-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ml-service
+
+jobs:
+  test:
+    name: lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ml-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff==0.8.4
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        # Includes the contract tests the backend depends on, the
+        # pre/post-processing unit tests, and the metric-floor checks against the
+        # committed model.pkl artifacts.
+        run: pytest -q
+
+  retrain:
+    name: retraining reproduces the published metrics
+    runs-on: ubuntu-latest
+    # Only when the training code or its data changes — retraining on every
+    # unrelated push would burn minutes for no signal.
+    if: |
+      contains(join(github.event.commits.*.modified, ','), 'train.py') ||
+      contains(join(github.event.commits.*.modified, ','), 'dataset.py') ||
+      github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ml-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Retrain both models
+        # Each trainer exits non-zero if its held-out metric falls below the
+        # floor it declares, so this step is the regression gate.
+        run: |
+          python -m app.complaints.train
+          python -m app.payment_risk.train

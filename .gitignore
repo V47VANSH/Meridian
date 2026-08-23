@@ -1,9 +1,24 @@
+# Dependencies and build output
 node_modules
 dist
-.env
-.DS_Store
-.agents
-skills-lock.json
 .venv/
 __pycache__/
 *.pyc
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Local databases — the app recreates and reseeds these on first run
+*.db
+
+# Secrets. Committed .env.example files document every variable.
+.env
+.env.local
+
+# Editor / OS
+.DS_Store
+
+# Agent tooling
+.agents
+skills-lock.json
