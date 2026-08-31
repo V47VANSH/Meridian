@@ -26,3 +26,9 @@ skills-lock.json
 
 # Built code archive — regenerate from a fresh clone, do not commit a 10MB build artifact
 submission/team-098-final-code.zip
+
+# Course handout and loose troubleshooting screenshots — not project deliverables.
+# The Jira and GitHub evidence used in the report lives in docs/screenshots/.
+IITM Software Engineering Course*.docx
+/image.png
+/image copy*.png
