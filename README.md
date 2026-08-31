@@ -254,7 +254,7 @@ the API but there is no upload endpoint to store a file against it.
 still needs doing by hand.
 
 **Deploying?** Everything is in [DEPLOYMENT.md](DEPLOYMENT.md) — Supabase, Render
-and Vercel, step by step.
+and Vercel, explained step by step.
 
 **Start with the [final report](docs/11-final-report.md)** — it compiles every
 milestone and sprint, and covers the tools used, the testing results, the code
