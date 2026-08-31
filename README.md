@@ -165,8 +165,10 @@ them behind **Show demo accounts** and fills the form when one is clicked.
 
 ## Testing
 
-**Backend — 131 tests.** Each runs against its own throwaway SQLite database, so
-nothing external is required: no PostgreSQL, no Redis, no running server.
+**Backend — 149 tests.** Each runs against its own throwaway SQLite database, so
+nothing external is required: no PostgreSQL, no Redis, no running server. A
+further 7 exercise the Redis-backed lock and rate limiter against a live server
+and skip when none is configured.
 
 ```bash
 cd backend
@@ -274,6 +276,7 @@ The design documents it draws on live in [docs/](docs/):
 | [10 — Milestone 3 Report](docs/10-milestone-3-report.md) | Sprint 4 record: API inventory, test cases TC-01…TC-11, user feedback |
 | [13 — Presentation](docs/13-presentation.md) · [PDF](docs/13-presentation.pdf) | Slide deck with speaker notes |
 | [14 — Demo Script](docs/14-demo-script.md) | Running order for the recorded demonstration |
+| [15 — Viva Prep](docs/15-viva-prep.md) | Likely examiner questions with verified answers |
 
 The backend also has its own [backend/README.md](backend/README.md) covering the
 API in more detail, and the ML service has

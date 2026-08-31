@@ -20,7 +20,7 @@ python -m venv .venv && .venv\Scripts\activate   # Windows; source .venv/bin/act
 pip install -r requirements.txt
 
 uvicorn app.main:app --reload        # http://localhost:8000, Swagger at /api/docs
-pytest                               # whole suite (131 tests)
+pytest                               # whole suite (149 tests, +7 skipped without Redis)
 pytest tests/test_bookings.py        # one module
 pytest -k booking                    # by keyword
 pytest tests/test_auth.py::test_refresh_rotates_the_token_and_revokes_the_old_one   # one test
@@ -182,9 +182,8 @@ Redis, no running server. Use the `society`, `login` and `client` fixtures.
 ## Designed but not built
 
 Do not assume these exist; several docs describe them as intent. WebSocket/realtime
-gateway (clients poll), Redis, push/email/SMS delivery (channels are routed and
-logged; the in-app `Notification` row is always written), **rate limiting** (a
-`RATE_LIMITED` code is reserved but nothing enforces it), PWA/service worker,
+gateway (clients poll), push/email/SMS delivery (channels are routed and
+logged; the in-app `Notification` row is always written), PWA/service worker,
 frontend tests, Sentry, and any deployment (`render.yaml`/`vercel.json` do not
 exist). `docs/00-architecture-overview.md` §5 has a Status column; `docs/11-final-report.md`
 Part G explains each deviation.

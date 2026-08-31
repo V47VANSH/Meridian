@@ -93,8 +93,9 @@ Twilio (SMS), Web Push/VAPID (browser push), Sentry (errors).
 ```
 
 *The diagram above is the designed topology. As delivered, Razorpay is integrated
-server-side; SendGrid, Twilio, Web Push and Sentry are not wired in, and Redis and
-the WebSocket gateway are not built. See the Status column in §5.*
+server-side and Redis is optional but supported; SendGrid, Twilio, Web Push and
+Sentry are not wired in, and the WebSocket gateway is not built — clients poll
+instead. See the Status column in §5.*
 
 ## 5. Technology Stack Summary
 
@@ -112,15 +113,16 @@ to a working fallback rather than a broken feature.
 | Backend | FastAPI (Python 3.11), modular monolith | **Implemented** | One router per epic keeps a consistent pattern for a 5-person team; same language as the ML service, so the stack is uniform rather than split |
 | ORM | SQLAlchemy 2.0 + Alembic | **Implemented** | Typed models and versioned migrations |
 | Database | SQLite (default) / PostgreSQL via `DATABASE_URL` | **Implemented** | SQLite so the project clones and runs with no server; the Postgres path is exercised in CI |
-| — Supabase hosting + Storage | Managed Postgres + object storage | Designed, not built | No hosted deployment; complaint photo upload therefore has no store and is not implemented |
-| Cache/Queue | Redis (Upstash) | Designed, not built | The booking lock falls back to an in-process lock plus a partial unique index in the database, which is equivalent for a single-instance deploy |
+| — Supabase Postgres | Managed Postgres | **Implemented** | The deployed database; migrations applied by Alembic before the server starts |
+| — Supabase Storage | Object storage | Not built | Complaint photo upload therefore has nowhere to put a file and is not implemented |
+| Cache/Queue | Redis (Upstash) | **Implemented** (optional) | Backs the booking lock and the rate limiter. Both fall back to in-process equivalents when unset — correct for one instance, insufficient for several |
 | ML | FastAPI (Python), separate service | **Implemented** | Python is the right tool for ML; kept as its own deploy since one teammate owns it end-to-end |
 | Payments | Razorpay, test/sandbox mode | **Implemented** (server side) | HMAC signature verification is real; completing a checkout needs live gateway credentials |
 | Realtime | FastAPI WebSockets + Redis pub/sub | Designed, not built | Clients poll instead; every REST endpoint behind the intended events exists and is tested |
 | Notifications — in-app feed | `Notification` rows + polled feed | **Implemented** | The in-app row is always written, whatever happens to external channels |
 | Notifications — Web Push / SendGrid / Twilio | External delivery | Designed, not built | Channel routing is implemented and logged at the dispatch boundary; delivery needs provider credentials |
 | CI/CD | GitHub Actions | **Implemented** (CI) | Lint, typecheck, test and contract-drift checks on every PR; no deploy step, as nothing is hosted |
-| Hosting | Vercel (frontend) + Render (backend + ML) | Designed, not built | Delivered as a run-locally project; see the final report's *Hosting* section |
+| Hosting | Vercel (frontend) + Render (backend + ML) | **Implemented** | Deployed; the frontend proxies `/api` to Render so the browser stays same-origin |
 | Monitoring | Sentry + UptimeRobot | Designed, not built | `/health` liveness endpoints exist on both services; no error-tracking SDK is wired in |
 
 ## 6. Epics → Architecture Mapping
@@ -136,7 +138,7 @@ to a working fallback rather than a broken feature.
 
 ## 7. Cross-Cutting Concerns
 
-- **Security**: JWT access (15 min) + rotating refresh tokens (stored hashed); role and tenant guards as dependencies on every route, with the society scope read from the token claim and never from the request. Rate limiting on auth/SOS endpoints is designed but **not implemented**. Full detail in [02 — Backend Architecture](02-backend-architecture.md#4-security).
+- **Security**: JWT access (15 min) + rotating refresh tokens (stored hashed); role and tenant guards as dependencies on every route, with the society scope read from the token claim and never from the request. Fixed-window rate limiting, tighter on auth and SOS endpoints than on general traffic. Full detail in [02 — Backend Architecture](02-backend-architecture.md#4-security).
 - **Notifications**: the in-app row is always written regardless of what happens to any external channel. Channel routing is implemented and logged at the dispatch boundary; queued external delivery (so a flaky SMS/email provider never blocks a request) is designed but **not built**. Full detail in [02 — Backend Architecture](02-backend-architecture.md#10-notifications).
 - **Auditability**: every state-changing action (payment, complaint status change, booking, guest pass, SOS) writes an `AuditLog` row — directly satisfies the Milestone 1 goal of "transparency and accountability."
 - **ML fallback**: both ML endpoints have a deterministic fallback (rule-based category guess / neutral risk score) if the ML service is unreachable or returns low confidence — the platform must keep functioning even if ML is down. Detail in [04 — ML Architecture](04-ml-architecture.md#7-fallback-behavior).
